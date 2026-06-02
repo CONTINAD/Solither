@@ -412,6 +412,26 @@ canvas#game {
 #pbLen { color: var(--sol-green); font-weight: 700; margin-left: 4px; }
 #pbLen::before { content: '· '; color: rgba(255,255,255,0.4); }
 
+#multiKill {
+  position: absolute;
+  top: 28%;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: none;
+  font-size: 44px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  text-align: center;
+  white-space: nowrap;
+  background: linear-gradient(90deg, #FFD166, #FF4D6D, #9945FF);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 18px rgba(255, 77, 109, 0.5));
+  animation: mkPop 0.4s cubic-bezier(0.2, 1.4, 0.5, 1);
+}
+@keyframes mkPop { from { transform: translateX(-50%) scale(0.5); opacity: 0; } to { transform: translateX(-50%) scale(1); opacity: 1; } }
+
 #toast {
   position: absolute;
   bottom: 40px;

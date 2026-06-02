@@ -62,6 +62,7 @@ const SFX = (() => {
     },
     death() { ensure(); blip(340, 0.5, 'sawtooth', 0.3, 70); },
     tick() { ensure(); blip(1040, 0.06, 'square', 0.12); },
+    streak(n) { ensure(); const base = 440 + Math.min(n, 6) * 110; blip(base, 0.12, 'square', 0.22, base * 1.5); },
     roundWin() {
       ensure();
       [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => blip(f, 0.2, 'square', 0.2), i * 110));
@@ -446,6 +447,7 @@ function wireSocket() {
     }
   });
   socket.on('kill', (k) => addKillFeed(k));
+  socket.on('multikill', (m) => showMultiKill(m.streak));
   socket.on('roundStarted', (st) => updateRoundUI(st));
 
   // ── Connection status + auto-reconnect ──
@@ -667,6 +669,22 @@ function renderMyRankRow(lb, me) {
     `<span class="rank">${me.rank}</span>` +
     `<span class="nm">${escapeHtml(name)}</span>` +
     `<span class="sc">${me.score || 0}</span>`;
+}
+
+const MK_NAMES = { 2: 'DOUBLE KILL!', 3: 'TRIPLE KILL!', 4: 'QUAD KILL!', 5: 'PENTA KILL!' };
+let mkTimer = null;
+function showMultiKill(streak) {
+  const el = $('multiKill');
+  if (!el) return;
+  el.textContent = MK_NAMES[streak] || `MULTI KILL ×${streak}!`;
+  el.classList.remove('hidden');
+  // restart the pop animation
+  el.style.animation = 'none';
+  void el.offsetWidth;
+  el.style.animation = '';
+  SFX.streak(streak);
+  clearTimeout(mkTimer);
+  mkTimer = setTimeout(() => el.classList.add('hidden'), 1500);
 }
 
 let toastTimer = null;

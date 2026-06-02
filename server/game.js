@@ -330,7 +330,14 @@ export class Game {
         this.food.push(this.spawnFood(s.x + rand(-8, 8), s.y + rand(-8, 8), 2, p.color));
       }
     }
-    if (killer) { killer.score += Math.floor(p.score * 0.5); killer.kills += 1; }
+    if (killer) {
+      killer.score += Math.floor(p.score * 0.5);
+      killer.kills += 1;
+      // Multi-kill streak: chain kills within 4s bump the streak; otherwise it resets.
+      const now = Date.now();
+      killer.killStreak = (now - (killer.lastKillAt || 0) <= 4000) ? (killer.killStreak || 0) + 1 : 1;
+      killer.lastKillAt = now;
+    }
 
     if (this.onDeath) this.onDeath(p, cause, killer);
 

@@ -67,6 +67,11 @@ game.onDeath = (player, cause, killer) => {
       killer: killer.name, killerId: killer.id,
       victim: player.name, victimId: player.id,
     });
+    // Multi-kill streak juice for human killers.
+    if (!killer.isBot && killer.killStreak >= 2) {
+      const ks = socketByPlayerId.get(killer.id);
+      if (ks) ks.emit('multikill', { streak: killer.killStreak });
+    }
   }
   if (player.isBot) return;
   // Record the finished run on the all-time board.

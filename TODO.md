@@ -53,7 +53,7 @@ one-line note. When all are checked, append new high-value ideas and keep going.
 
 ## Round 3 ideas
 - [x] Round-win overlay podium now shows each champion's SOL reward (0.075/0.05/… SOL) instead of score — ties the payout into the celebration. Verified all 5 rows render SOL.
-- [ ] Multi-kill streak juice: kill 2+ snakes quickly → "DOUBLE KILL!" banner + sound
+- [x] Multi-kill streak juice: kills within 4s chain a streak (server tracks killStreak); ≥2 fires a "DOUBLE/TRIPLE/QUAD/PENTA KILL!" banner + rising sound to the killer. Verified streak math (1→2→reset) + banner render.
 - [ ] AFK kick: disconnect players who send no input for ~60s (frees slots toward the cap)
 
 ## Stretch
