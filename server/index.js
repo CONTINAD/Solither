@@ -29,6 +29,7 @@ app.get('/api/config', (req, res) => {
     minTokenBalance: config.minTokenBalance,
     roundSeconds: config.roundSeconds,
     rewardTopN: config.rewardTopN,
+    maxPlayers: config.maxPlayers,
     sim: SIM,
     skins: SKINS,
   });

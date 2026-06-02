@@ -16,7 +16,7 @@ export const config = {
   balanceCacheSeconds: num(process.env.BALANCE_CACHE_SECONDS, 120),
 
   // Max concurrent human players (protects performance). Excess joins get "arena full".
-  maxPlayers: num(process.env.MAX_PLAYERS, 50),
+  maxPlayers: num(process.env.MAX_PLAYERS, 150),
 
   // Rounds
   roundSeconds: num(process.env.ROUND_SECONDS, 180),
