@@ -16,9 +16,9 @@ export const config = {
   balanceCacheSeconds: num(process.env.BALANCE_CACHE_SECONDS, 120),
 
   // Max concurrent human players (protects performance). Excess joins get "arena full".
-  // Load-tested on the current Railway instance: ~75 holds full 22Hz, 100 strains (18Hz),
-  // 150 gets choppy (~8.6Hz). 80 = smooth headroom. Raise via MAX_PLAYERS env if you upsize the box.
-  maxPlayers: num(process.env.MAX_PLAYERS, 80),
+  // Targeting 150 with the optimized broadcast (shared per-tick frame + food grid).
+  // Tune MAX_PLAYERS to your instance's measured smooth ceiling.
+  maxPlayers: num(process.env.MAX_PLAYERS, 150),
 
   // Rounds
   roundSeconds: num(process.env.ROUND_SECONDS, 180),

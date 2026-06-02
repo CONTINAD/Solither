@@ -442,17 +442,14 @@ export class Game {
   }
 
   // Build a snapshot to send to a particular player (culled to their view).
-  snapshotFor(player) {
-    const view = 1400; // half-width of what we send around the player
-    const cx = player ? player.x : 0;
-    const cy = player ? player.y : 0;
-    const view2 = view * view;
-
+  // Build the per-tick render frame ONCE (shared across all viewers): each snake's
+  // wire object is built a single time, and food is bucketed into a grid for cheap culling.
+  // This replaces the old O(viewers × snakes × segments) per-player snapshot with
+  // O(snakes × segments) once + O(viewers × nearby) culling — the key to scaling players.
+  buildFrame() {
     const snakes = [];
     for (const p of this.players.values()) {
       if (!p.alive) continue;
-      // Cull snakes whose head is far away (cheap; bodies can poke in slightly).
-      if (player && dist2(cx, cy, p.x, p.y) > (view + 600) * (view + 600)) continue;
       const segs = [];
       const samples = this.bodySamples(p);
       for (const s of samples) segs.push([Math.round(s.x), Math.round(s.y)]);
@@ -470,12 +467,44 @@ export class Game {
       });
     }
 
-    const food = [];
+    const FCELL = 700;
+    const foodGrid = new Map();
     for (const f of this.food) {
-      if (dist2(cx, cy, f.x, f.y) > view2) continue;
-      food.push([Math.round(f.x), Math.round(f.y), f.r, f.color]);
+      const k = Math.floor(f.x / FCELL) + ',' + Math.floor(f.y / FCELL);
+      let arr = foodGrid.get(k);
+      if (!arr) foodGrid.set(k, (arr = []));
+      arr.push(f);
+    }
+    return { snakes, foodGrid, fcell: FCELL };
+  }
+
+  // Cheap per-viewer cull: filter the shared frame around (cx, cy). Reuses snake
+  // wire objects (no rebuild) and only scans food cells overlapping the viewport.
+  cullFrameFor(frame, cx, cy) {
+    const view = 1400;
+    const view2 = view * view;
+    const cullR2 = (view + 600) * (view + 600);
+
+    const snakes = [];
+    for (const s of frame.snakes) {
+      const dx = s.x - cx, dy = s.y - cy;
+      if (dx * dx + dy * dy <= cullR2) snakes.push(s);
     }
 
+    const food = [];
+    const C = frame.fcell;
+    const minx = Math.floor((cx - view) / C), maxx = Math.floor((cx + view) / C);
+    const miny = Math.floor((cy - view) / C), maxy = Math.floor((cy + view) / C);
+    for (let gx = minx; gx <= maxx; gx++) {
+      for (let gy = miny; gy <= maxy; gy++) {
+        const arr = frame.foodGrid.get(gx + ',' + gy);
+        if (!arr) continue;
+        for (const f of arr) {
+          const dx = f.x - cx, dy = f.y - cy;
+          if (dx * dx + dy * dy <= view2) food.push([Math.round(f.x), Math.round(f.y), f.r, f.color]);
+        }
+      }
+    }
     return { snakes, food, world: WORLD };
   }
 

@@ -183,6 +183,8 @@ const NET_HZ = 22;
 setInterval(() => {
   const lb = game.leaderboard(10);
   const roundStatus = rounds.status();
+  const humans = countHumans();
+  const frame = game.buildFrame(); // built ONCE per tick, shared across all viewers
   for (const [pid, socket] of socketByPlayerId) {
     const player = game.players.get(pid);
     if (!player) continue;
@@ -208,11 +210,11 @@ setInterval(() => {
       me: player.alive
         ? { id: player.id, x: Math.round(player.x), y: Math.round(player.y), a: Number(player.angle.toFixed(3)), boosting: player.boosting, score: player.score, length: Math.floor(player.length), alive: true, rank: game.rankOf(player), coiling: player.coiling }
         : { id: player.id, alive: false, score: player.score },
-      ...game.snapshotFor(center),
+      ...game.cullFrameFor(frame, Math.round(center.x), Math.round(center.y)),
       spectate,
       leaderboard: lb,
       round: roundStatus,
-      players: countHumans(),
+      players: humans,
     });
   }
 }, 1000 / NET_HZ);

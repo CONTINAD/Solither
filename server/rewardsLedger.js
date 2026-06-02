@@ -11,7 +11,7 @@ import { fileURLToPath } from 'url';
 // ─────────────────────────────────────────────────────────────
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = path.join(__dirname, '..', 'data');
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
 const FILE = path.join(DATA_DIR, 'rewards-ledger.json');
 
 let ledger = { totalSol: 0, rounds: 0, byWallet: {} };
