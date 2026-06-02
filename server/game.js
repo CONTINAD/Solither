@@ -355,14 +355,21 @@ export class Game {
   kill(p, cause, killer = null) {
     if (!p.alive) return;
     p.alive = false;
-    // Scatter the corpse into CHUNKY loot — bigger snakes drop higher-value, bigger pellets,
-    // so eating a kill is a real payoff (not a trail of +1s).
-    const dropVal = Math.max(3, Math.min(9, 3 + Math.floor(p.length / 45)));
-    for (let i = 0; i < p.trail.length; i += 4) {
-      const s = p.trail[i];
-      if (Math.random() < 0.7) {
-        const drop = this.spawnFood(s.x + rand(-10, 10), s.y + rand(-10, 10), dropVal, p.color);
-        drop.r = 7 + Math.min(7, dropVal);
+    // Scatter the corpse into loot worth about HALF the victim's mass — so eating a kill
+    // nets the killer roughly half the size the victim was, never more (stops runaway
+    // snowballing off big kills). Total drop value is split into chunky pellets along the body.
+    const totalDrop = Math.round(p.length * 0.5);
+    if (totalDrop > 0) {
+      const pellets = Math.max(1, Math.min(60, Math.round(p.length / 10)));
+      const base = Math.floor(totalDrop / pellets);
+      let extra = totalDrop - base * pellets;
+      const stride = Math.max(1, Math.floor(p.trail.length / pellets));
+      for (let n = 0; n < pellets; n++) {
+        const val = base + (extra > 0 ? (extra--, 1) : 0);
+        if (val <= 0) continue;
+        const s = p.trail[Math.min(p.trail.length - 1, n * stride)] || { x: p.x, y: p.y };
+        const drop = this.spawnFood(s.x + rand(-10, 10), s.y + rand(-10, 10), val, p.color);
+        drop.r = 6 + Math.min(7, val);
         this.food.push(drop);
       }
     }
