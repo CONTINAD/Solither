@@ -38,6 +38,7 @@ const MIN_BOOST_LENGTH = 12;     // can't boost below this length
 const COIL_RADIUS = 130;         // only a TIGHT knit circle (head staying this close to an anchor)…
 const COIL_GRACE_TICKS = 150;    // …for this long (~5s @30Hz) counts as coiling/camping
 const COIL_DRAIN_EVERY = 6;      // then lose 1 length/score every this many ticks until you move out
+const SPAWN_IMMUNITY_MS = 3000;  // brief collision immunity on spawn / respawn / arena reset
 
 let nextId = 1;
 // Snake skin palette — also exposed to the client via /api/config so the
@@ -150,6 +151,7 @@ export class Game {
       kills: 0,
       peakLength: START_LENGTH,
       spawnAt: Date.now(),
+      immuneUntil: Date.now() + SPAWN_IMMUNITY_MS, // can't die for a moment after spawning
       // anti-coil: penalize staying in a tiny area (coiling/camping) too long
       coilAnchor: { x, y },
       coilTicks: 0,
@@ -309,10 +311,12 @@ export class Game {
     // O(snakes × all-segments) sweep into ~O(total-segments) so it scales to many players.
     // CELL must exceed the max collision distance (headR + bodyR ≈ 58) so a 3×3 query is complete.
     const CELL = 120;
+    const now = Date.now();
     const alive = [...this.players.values()].filter((p) => p.alive);
 
     const grid = new Map(); // "cx,cy" -> [{ x, y, owner, r }]
     for (const o of alive) {
+      if (now < (o.immuneUntil || 0)) continue; // immune snakes' bodies are intangible
       const oR = this.bodyRadius(o);
       const samples = o.trail;
       for (let i = 6; i < samples.length; i += SEGMENT_EVERY) {
@@ -325,6 +329,7 @@ export class Game {
     }
 
     for (const p of alive) {
+      if (now < (p.immuneUntil || 0)) continue; // immune snakes can't die
       const headR = this.bodyRadius(p);
       const cx = Math.floor(p.x / CELL);
       const cy = Math.floor(p.y / CELL);
@@ -417,6 +422,7 @@ export class Game {
       p.boosting = false;
       p.alive = true;
       p.spawnAt = Date.now();
+      p.immuneUntil = Date.now() + SPAWN_IMMUNITY_MS; // grace right after the wipe
       p.coilAnchor = { x, y };
       p.coilTicks = 0;
       p.coiling = false;
@@ -424,77 +430,29 @@ export class Game {
   }
 
   botThink(p) {
-    // Priority: wall > avoid nearby bodies > hunt smaller heads > seek food > wander.
-    const headR = this.bodyRadius(p);
+    // Brain-dead bots (filler until launch): no hunting, no dodging — they just
+    // wander aimlessly and occasionally amble toward a nearby pellet. Trivial to kill.
 
-    // 1. Wall avoidance — turn back toward center near the edge.
-    if (Math.hypot(p.x, p.y) > WORLD.radius * 0.8) {
-      p.targetAngle = Math.atan2(-p.y, -p.x) + rand(-0.2, 0.2);
+    // Only smarts they keep: don't faceplant the lethal wall. Turn back near the edge.
+    if (Math.hypot(p.x, p.y) > WORLD.radius * 0.82) {
+      p.targetAngle = Math.atan2(-p.y, -p.x) + rand(-0.3, 0.3);
       p._wander = p.targetAngle;
       p.boosting = false;
       return;
     }
 
-    // 2. Scan others for danger (nearby bodies) and prey (smaller, closeby heads).
-    let avoidX = 0, avoidY = 0, danger = false;
-    const dangerR = 70 + headR;         // weak avoidance → easy to trap / cut off (bots are filler pre-launch)
-    const dangerR2 = dangerR * dangerR;
-    let prey = null, preyD2 = 260 * 260; // shorter prey sight (easier bots)
-
-    for (const o of this.players.values()) {
-      if (!o.alive || o.id === p.id) continue;
-      // Repulsion from nearby body segments (sampled sparsely for speed).
-      const samples = o.trail;
-      for (let i = 0; i < samples.length; i += 14) {
-        const s = samples[i];
-        const d2 = dist2(p.x, p.y, s.x, s.y);
-        if (d2 < dangerR2) {
-          const d = Math.sqrt(d2) || 1;
-          const w = (dangerR - d) / dangerR;
-          avoidX += ((p.x - s.x) / d) * w;
-          avoidY += ((p.y - s.y) / d) * w;
-          danger = true;
-        }
+    // Occasionally drift toward a close pellet (lazily — short sight, low chance).
+    if (this.tick % 12 === 0 && Math.random() < 0.5) {
+      let best = null, bestD = 220 * 220;
+      for (const f of this.food) {
+        const d = dist2(p.x, p.y, f.x, f.y);
+        if (d < bestD) { bestD = d; best = f; }
       }
-      // Prey = a notably smaller snake's head within range.
-      const hd2 = dist2(p.x, p.y, o.x, o.y);
-      if (o.length < p.length * 0.7 && hd2 < preyD2) { preyD2 = hd2; prey = o; }
+      if (best) p._wander = Math.atan2(best.y - p.y, best.x - p.x);
     }
 
-    // 2a. Flee danger first.
-    if (danger && (avoidX !== 0 || avoidY !== 0)) {
-      p.targetAngle = Math.atan2(avoidY, avoidX);
-      p._wander = p.targetAngle;
-      p.boosting = false;
-      return;
-    }
-
-    // 3. Hunt — only a handful of bots ever chase, no boost, loose aim (easy to juke / mostly passive).
-    if (prey && p._aggro > 0.9) {
-      const lead = 30;
-      const tx = prey.x + Math.cos(prey.angle) * lead;
-      const ty = prey.y + Math.sin(prey.angle) * lead;
-      p.targetAngle = Math.atan2(ty - p.y, tx - p.x);
-      p._wander = p.targetAngle;
-      p.boosting = false; // bots never boost-chase anymore
-      return;
-    }
-
-    // 4. Seek the nearest food.
-    let best = null, bestD = 360 * 360;
-    for (const f of this.food) {
-      const d = dist2(p.x, p.y, f.x, f.y);
-      if (d < bestD) { bestD = d; best = f; }
-    }
-    if (best) {
-      p.targetAngle = Math.atan2(best.y - p.y, best.x - p.x);
-      p._wander = p.targetAngle;
-      p.boosting = false;
-      return;
-    }
-
-    // 5. Wander.
-    if (this.tick % 20 === 0 || Math.random() < 0.02) p._wander += rand(-0.5, 0.5);
+    // Otherwise just meander. No reaction to other snakes at all.
+    if (this.tick % 15 === 0 || Math.random() < 0.04) p._wander += rand(-0.6, 0.6);
     p.targetAngle = p._wander;
     p.boosting = false;
   }
@@ -527,6 +485,7 @@ export class Game {
         x: Math.round(p.x),
         y: Math.round(p.y),
         a: Number(p.angle.toFixed(2)),
+        immune: Date.now() < (p.immuneUntil || 0),
         segs,
       });
     }

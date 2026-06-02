@@ -139,6 +139,7 @@ const pred = {
   color: '#14F195',
   name: 'You',
   serverX: 0, serverY: 0,
+  immune: false,      // brief spawn/reset immunity (mirrors server me.immune)
 };
 
 // ── Input ────────────────────────────────────────────────────
@@ -409,6 +410,7 @@ function wireSocket() {
       }
       prevLen = s.me.length;
       pred.length = s.me.length || pred.length;
+      pred.immune = !!s.me.immune;
       pred.serverX = s.me.x; pred.serverY = s.me.y;
       // Anti-coil warning toast (throttled) while the server is draining for camping.
       if (s.me.coiling) {
@@ -967,6 +969,7 @@ function interpolatedSnakes() {
     for (let i = n; i < b.segs.length; i++) segs.push(b.segs[i]);
     out.push({
       id, name: b.name, color: b.color, r: b.r, score: b.score, boosting: b.boosting,
+      immune: b.immune,
       x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f,
       a: angLerp(a.a, b.a, f), segs,
     });
@@ -1029,14 +1032,25 @@ function render(now) {
   drawFx();
 
   const remotes = interpolatedSnakes();
-  const leaderId = leaderboardData.length ? leaderboardData[0].id : null;
+  // Crown the BIGGEST snake currently on screen (you included) so a crown is always
+  // visible on the biggest guy around — not a global #1 that's usually off-screen.
+  let crownId = null, crownR = -1;
+  for (const sn of remotes) if (sn.r > crownR) { crownR = sn.r; crownId = sn.id; }
+  if (pred.active) { const pr = bodyRadius(pred.length); if (pr > crownR) { crownR = pr; crownId = myId; } }
+
   for (const sn of remotes) {
+    if (sn.immune) ctx.globalAlpha = 0.45 + 0.25 * Math.sin(performance.now() / 120);
     drawSnake(sn.segs, sn.x, sn.y, sn.a, sn.r, sn.color, sn.name, sn.boosting);
-    if (sn.id === leaderId) drawCrown(sn.x, sn.y, sn.r);
+    ctx.globalAlpha = 1;
+    if (sn.immune) drawShield(sn.x, sn.y, sn.r);
+    if (sn.id === crownId) drawCrown(sn.x, sn.y, sn.r);
   }
   if (pred.active) {
+    if (pred.immune) ctx.globalAlpha = 0.5 + 0.25 * Math.sin(performance.now() / 120);
     drawSnake(pred.trail.map((p) => [p.x, p.y]), pred.x, pred.y, pred.a, bodyRadius(pred.length), pred.color, pred.name, isBoosting);
-    if (myId === leaderId) drawCrown(pred.x, pred.y, bodyRadius(pred.length));
+    ctx.globalAlpha = 1;
+    if (pred.immune) drawShield(pred.x, pred.y, bodyRadius(pred.length));
+    if (myId === crownId) drawCrown(pred.x, pred.y, bodyRadius(pred.length));
     // Head flash on eat.
     if (performance.now() < headFlashUntil) {
       ctx.globalAlpha = 0.6;
@@ -1228,6 +1242,18 @@ function drawEyes(hx, hy, a, r) {
     ctx.fillStyle = '#06110b';
     ctx.beginPath(); ctx.arc(ex + Math.cos(a) * r * 0.12, ey + Math.sin(a) * r * 0.12, r * 0.14, 0, Math.PI * 2); ctx.fill();
   }
+}
+
+// Cyan shield ring around an immune snake's head (spawn / arena-reset grace).
+function drawShield(hx, hy, r) {
+  const pulse = 1.5 + Math.sin(performance.now() / 110) * 0.2;
+  ctx.save();
+  ctx.strokeStyle = 'rgba(120,220,255,0.85)';
+  ctx.lineWidth = 2.5;
+  ctx.shadowColor = '#7CC8FF';
+  ctx.shadowBlur = 12;
+  ctx.beginPath(); ctx.arc(hx, hy, r * pulse, 0, Math.PI * 2); ctx.stroke();
+  ctx.restore();
 }
 
 // Gold crown worn by the current #1 snake — sits just on top of the head.

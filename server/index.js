@@ -219,7 +219,7 @@ setInterval(() => {
 
     socket.emit('state', {
       me: player.alive
-        ? { id: player.id, x: Math.round(player.x), y: Math.round(player.y), a: Number(player.angle.toFixed(3)), boosting: player.boosting, score: player.score, length: Math.floor(player.length), alive: true, rank: game.rankOf(player), coiling: player.coiling }
+        ? { id: player.id, x: Math.round(player.x), y: Math.round(player.y), a: Number(player.angle.toFixed(3)), boosting: player.boosting, score: player.score, length: Math.floor(player.length), alive: true, rank: game.rankOf(player), coiling: player.coiling, immune: Date.now() < (player.immuneUntil || 0) }
         : { id: player.id, alive: false, score: player.score },
       ...game.cullFrameFor(frame, Math.round(center.x), Math.round(center.y)),
       spectate,
