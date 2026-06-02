@@ -8,6 +8,7 @@ import { config, DEMO_MODE } from './config.js';
 import { verifyWallet } from './solana.js';
 import { Game, SIM, SKINS } from './game.js';
 import { RoundManager } from './rewards.js';
+import { recordScore, topScores } from './highscores.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
@@ -43,6 +44,10 @@ app.get('/api/rounds', (req, res) => {
   res.json(rounds.history.slice(-10).reverse());
 });
 
+app.get('/api/highscores', (req, res) => {
+  res.json(topScores());
+});
+
 // ── Game + rounds ────────────────────────────────────────────
 const game = new Game();
 const rounds = new RoundManager(game, io);
@@ -59,6 +64,8 @@ game.onDeath = (player, cause, killer) => {
     });
   }
   if (player.isBot) return;
+  // Record the finished run on the all-time board.
+  recordScore(player.name, player.score, player.wallet);
   const sock = socketByPlayerId.get(player.id);
   if (sock) {
     sock.emit('dead', {
@@ -78,7 +85,18 @@ game.onDeath = (player, cause, killer) => {
 io.on('connection', (socket) => {
   let playerId = null;
 
+  // ── Per-socket rate limiting ──
+  let inputCount = 0, inputWindow = Date.now();
+  const cooldowns = {};
+  const onCooldown = (key, ms) => {
+    const now = Date.now();
+    if (cooldowns[key] && now - cooldowns[key] < ms) return true;
+    cooldowns[key] = now;
+    return false;
+  };
+
   socket.on('join', async ({ wallet, name, color }, ack) => {
+    if (onCooldown('join', 1000)) { ack?.({ ok: false, reason: 'Slow down a moment and try again.' }); return; }
     const result = await verifyWallet(wallet);
     if (!result.ok) {
       ack?.({ ok: false, reason: result.reason });
@@ -102,15 +120,20 @@ io.on('connection', (socket) => {
   });
 
   socket.on('input', (data) => {
+    // Cap at ~60 inputs/sec per socket; drop excess to prevent flooding.
+    const now = Date.now();
+    if (now - inputWindow >= 1000) { inputWindow = now; inputCount = 0; }
+    if (++inputCount > 60) return;
     if (playerId != null) game.setInput(playerId, data || {});
   });
 
   socket.on('spectate', () => {
-    if (playerId != null) spectating.add(playerId);
+    if (playerId != null && !onCooldown('spectate', 400)) spectating.add(playerId);
   });
 
   socket.on('respawn', (_, ack) => {
     if (playerId == null) { ack?.({ ok: false }); return; }
+    if (onCooldown('respawn', 400)) { ack?.({ ok: false }); return; }
     spectating.delete(playerId);
     const np = game.respawn(playerId, undefined);
     if (!np) { ack?.({ ok: false }); return; }
@@ -159,7 +182,7 @@ setInterval(() => {
 
     socket.emit('state', {
       me: player.alive
-        ? { id: player.id, x: Math.round(player.x), y: Math.round(player.y), a: Number(player.angle.toFixed(3)), boosting: player.boosting, score: player.score, length: Math.floor(player.length), alive: true }
+        ? { id: player.id, x: Math.round(player.x), y: Math.round(player.y), a: Number(player.angle.toFixed(3)), boosting: player.boosting, score: player.score, length: Math.floor(player.length), alive: true, rank: game.rankOf(player) }
         : { id: player.id, alive: false, score: player.score },
       ...game.snapshotFor(center),
       spectate,

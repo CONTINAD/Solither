@@ -17,6 +17,7 @@ one-line note. When all are checked, append new high-value ideas and keep going.
 - [x] Death screen stats: server tracks peak length/kills/survival/rank, shown in a 2x2 grid on the death card
 - [x] Spectate mode: death-screen "Spectate leader" → server re-centers snapshot on live #1 snake, camera follows it, "Spectating {name}" bar with Respawn. (user-requested) ✓ verified following BonkMoon
 - [x] Better bot AI: priority-based (wall > avoid nearby bodies > hunt smaller heads w/ lead+boost > seek food > wander)
+- [x] Boost now burns leaderboard SCORE too (not just length), floored at 0 — wasting mass on boost costs you rank (user-requested)
 - [x] Boost mass-drop verified: each boost tick burns 1 length + drops a booster-colored r=6 pellet at the tail, collectible by anyone (headless-tested: 7 burns→7 drops near tail, eater grows)
 
 ## Audio
@@ -27,15 +28,15 @@ one-line note. When all are checked, append new high-value ideas and keep going.
 - [x] Animated starfield/nebula: 2 parallax star layers (twinkle) + 3 drifting nebula gradient blobs behind the world
 - [x] Connection status dot (green/red w/ pulse) in HUD + "reconnecting" toast + socket.io auto-reconnect that re-joins with stored name/wallet on 'connect'
 - [x] Skin picker in lobby: 10 swatches from server palette, saved to localStorage, sent on join; server validates color against SKINS (verified orange snake)
-- [ ] Show your shortened wallet + length in HUD
-- [ ] Off-screen leaderboard arrow pointing to your rank when not in top 10
+- [x] Player HUD badge (bottom-left): snake-color dot + name + shortened wallet (So11…1112) + live length
+- [x] Off-list rank row: when you're outside the top 10, the leaderboard shows a "▾ {rank} {name} {score}" row (server sends live rank); verified at rank 15 with 14 bots
 
 ## Persistence / meta
-- [ ] Session high-score board persisted to data/highscores.json (name+score)
-- [ ] Lobby panel: last 5 rounds' winners (from /api/rounds)
+- [x] All-time high-score board: server/highscores.js persists top 10 to data/highscores.json on death; /api/highscores serves it; lobby shows it (verified record→persist→render)
+- [x] Lobby "Recent round winners" panel: shows last 5 rounds (each with its top-3 podium) from /api/rounds, scrollable
 
 ## Hardening
-- [ ] Server-side input rate limiting + name length/profanity sanitize
+- [x] Hardening: per-socket input cap (~60/s) + join/respawn/spectate cooldowns; sanitizeName() strips control/zero-width chars, collapses whitespace, clamps 16, masks profanity (headless-tested, used in addPlayer)
 - [ ] Pause/dim render when tab hidden; resume cleanly
 - [ ] Favicon + polished <title>/OG meta tags
 

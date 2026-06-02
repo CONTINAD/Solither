@@ -169,9 +169,26 @@ fetch('/api/config').then((r) => r.json()).then((cfg) => {
   }
 }).catch(() => {});
 
-fetch('/api/rounds').then((r) => r.json()).then(renderLastWinners).catch(() => {});
+fetch('/api/rounds').then((r) => r.json()).then(renderRecentRounds).catch(() => {});
+fetchHighScores();
 
 function shortMint(m) { return m ? m.slice(0, 4) + '…' + m.slice(-4) : ''; }
+
+function fetchHighScores() {
+  fetch('/api/highscores').then((r) => r.json()).then(renderHighScores).catch(() => {});
+}
+
+function renderHighScores(list) {
+  if (!list || !list.length) return;
+  const ol = $('highScoresList');
+  ol.innerHTML = '';
+  list.forEach((s, i) => {
+    const li = document.createElement('li');
+    li.innerHTML = `<span class="w-name">#${i + 1} ${escapeHtml(s.name)}</span><span>${s.score}</span>`;
+    ol.appendChild(li);
+  });
+  $('highScoresBox').classList.remove('hidden');
+}
 
 function buildSkinPicker(skins) {
   const wrap = $('skinPicker');
@@ -194,16 +211,28 @@ function buildSkinPicker(skins) {
   }
 }
 
-function renderLastWinners(history) {
+function renderRecentRounds(history) {
   if (!history || !history.length) return;
-  const last = history.find((h) => h.winners && h.winners.length);
-  if (!last) return;
-  const list = $('winnersList');
-  list.innerHTML = '';
-  for (const w of last.winners) {
-    const li = document.createElement('li');
-    li.innerHTML = `<span class="w-name">#${w.rank} ${escapeHtml(w.name)}</span><span>${w.score}</span>`;
-    list.appendChild(li);
+  // history is most-recent-first; show the last 5 rounds that had winners.
+  const withWinners = history.filter((h) => h.winners && h.winners.length).slice(0, 5);
+  if (!withWinners.length) return;
+  const box = $('recentRounds');
+  box.innerHTML = '';
+  for (const rec of withWinners) {
+    const block = document.createElement('div');
+    block.className = 'round-block';
+    const head = document.createElement('div');
+    head.className = 'round-head';
+    head.textContent = `Round ${rec.round}`;
+    block.appendChild(head);
+    const ol = document.createElement('ol');
+    rec.winners.forEach((w) => {
+      const li = document.createElement('li');
+      li.innerHTML = `<span class="w-name">#${w.rank} ${escapeHtml(w.name)}</span><span>${w.score}</span>`;
+      ol.appendChild(li);
+    });
+    block.appendChild(ol);
+    box.appendChild(block);
   }
   $('winnersBox').classList.remove('hidden');
 }
@@ -270,6 +299,17 @@ function setConn(ok) {
   if (d) d.classList.toggle('off', !ok);
 }
 
+function populatePlayerBadge() {
+  const badge = $('playerBadge');
+  if (!badge || !lastJoin) return;
+  const c = selectedSkin || pred.color;
+  const dot = $('pbDot');
+  if (dot) { dot.style.background = c; dot.style.color = c; }
+  $('pbName').textContent = lastJoin.name || 'You';
+  $('pbWallet').textContent = lastJoin.wallet ? shortMint(lastJoin.wallet) : '';
+  badge.classList.remove('hidden');
+}
+
 function startPlaying() {
   playing = true;
   SFX.init(); // first play is a user gesture — safe to start audio
@@ -278,6 +318,7 @@ function startPlaying() {
   $('deathScreen').classList.add('hidden');
   $('spectateBar').classList.add('hidden');
   $('hud').classList.remove('hidden');
+  populatePlayerBadge();
   resetBtn();
 }
 
@@ -289,6 +330,7 @@ function wireSocket() {
     leaderboardData = s.leaderboard || [];
     onlineCount = s.players || 0;
     updateLeaderboard(leaderboardData);
+    renderMyRankRow(leaderboardData, s.me);
     $('playersVal').textContent = onlineCount;
 
     // Buffer remote snakes for interpolation (exclude my own — predicted).
@@ -308,6 +350,7 @@ function wireSocket() {
     // Reconcile / seed local prediction.
     if (s.me && s.me.alive) {
       $('scoreVal').textContent = s.me.length || 0;
+      { const pl = $('pbLen'); if (pl) pl.textContent = s.me.length || 0; }
       // Detect eating (length up) for the "+N" pop + head flash.
       if (prevLen !== null && s.me.length > prevLen && pred.active) {
         const gain = s.me.length - prevLen;
@@ -448,9 +491,11 @@ $('quitBtn').addEventListener('click', () => {
   spectating = false; specTarget.has = false;
   $('deathScreen').classList.add('hidden');
   $('spectateBar').classList.add('hidden');
+  $('playerBadge').classList.add('hidden');
   $('hud').classList.add('hidden');
   $('lobby').classList.remove('hidden');
-  fetch('/api/rounds').then((r) => r.json()).then(renderLastWinners).catch(() => {});
+  fetch('/api/rounds').then((r) => r.json()).then(renderRecentRounds).catch(() => {});
+  fetchHighScores();
 });
 
 // ── Round / leaderboard UI ───────────────────────────────────
@@ -537,6 +582,23 @@ function drawConfetti() {
     ctx.restore();
   }
   ctx.globalAlpha = 1;
+}
+
+function renderMyRankRow(lb, me) {
+  const row = $('myRankRow');
+  if (!row) return;
+  const inTop = lb.some((p) => p.id === myId);
+  if (!playing || !me || !me.alive || inTop || !me.rank) {
+    row.classList.add('hidden');
+    return;
+  }
+  row.classList.remove('hidden');
+  const name = (lastJoin && lastJoin.name) || pred.name || 'You';
+  row.innerHTML =
+    `<span class="arrow">▾</span>` +
+    `<span class="rank">${me.rank}</span>` +
+    `<span class="nm">${escapeHtml(name)}</span>` +
+    `<span class="sc">${me.score || 0}</span>`;
 }
 
 let toastTimer = null;

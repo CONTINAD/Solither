@@ -5,3 +5,4 @@ npm-debug.log*
 .claude/*.lock
 data/highscores.json
 .railway-token
+.mcp.json

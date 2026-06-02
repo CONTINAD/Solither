@@ -159,6 +159,13 @@ canvas#game {
 .winners li { font-size: 13px; display: flex; justify-content: space-between; opacity: 0.9; }
 .winners li .w-name { color: var(--sol-green); }
 
+#recentRounds { display: grid; gap: 10px; max-height: 220px; overflow-y: auto; }
+.round-block { border-left: 2px solid var(--panel-border); padding-left: 8px; }
+.round-head { font-size: 10.5px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.5; margin-bottom: 3px; }
+.round-block ol { list-style: none; display: grid; gap: 3px; }
+.round-block li { font-size: 12.5px; display: flex; justify-content: space-between; opacity: 0.9; }
+.round-block li .w-name { color: var(--sol-green); }
+
 .footer { margin-top: 20px; font-size: 11px; opacity: 0.4; }
 
 /* ── HUD ────────────────────────────────────────────────── */
@@ -235,6 +242,23 @@ canvas#game {
 #lbList li .sc { font-weight: 700; }
 #lbList li.me { background: rgba(20, 241, 149, 0.14); }
 #lbList li.top3 .nm { color: var(--sol-green); }
+#myRankRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 5px 6px;
+  border-top: 1px dashed rgba(255,255,255,0.15);
+  font-size: 12.5px;
+  background: rgba(20, 241, 149, 0.14);
+  border-radius: 0 0 7px 7px;
+}
+#myRankRow .arrow { color: var(--sol-green); animation: rankBob 1.2s ease-in-out infinite; }
+@keyframes rankBob { 50% { transform: translateY(2px); } }
+#myRankRow .rank { opacity: 0.6; min-width: 22px; }
+#myRankRow .nm { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin: 0 4px; color: var(--sol-green); }
+#myRankRow .sc { font-weight: 700; }
+
 .lb-note { margin-top: 10px; font-size: 10.5px; opacity: 0.5; line-height: 1.4; }
 
 #minimapWrap {
@@ -308,6 +332,32 @@ canvas#game {
 @media (hover: hover) and (min-width: 760px) {
   #boostBtn { opacity: 0.5; width: 76px; height: 76px; font-size: 12px; }
 }
+
+#playerBadge {
+  position: absolute;
+  left: 14px;
+  bottom: 132px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  padding: 8px 12px;
+  backdrop-filter: blur(10px);
+  font-size: 12.5px;
+  max-width: 250px;
+}
+#playerBadge .pb-dot {
+  width: 11px; height: 11px;
+  border-radius: 50%;
+  box-shadow: 0 0 6px currentColor;
+  flex: none;
+}
+#pbName { font-weight: 700; white-space: nowrap; }
+#pbWallet { opacity: 0.55; font-family: ui-monospace, monospace; font-size: 11px; }
+#pbLen { color: var(--sol-green); font-weight: 700; margin-left: 4px; }
+#pbLen::before { content: '· '; color: rgba(255,255,255,0.4); }
 
 #toast {
   position: absolute;

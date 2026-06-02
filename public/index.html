@@ -33,6 +33,7 @@
     <div id="leaderboard">
       <div class="lb-title">🏆 Leaderboard</div>
       <ol id="lbList"></ol>
+      <div id="myRankRow" class="hidden"></div>
       <div class="lb-note">Top <span id="topNNote">3</span> at round end split creator rewards</div>
     </div>
 
@@ -85,8 +86,13 @@
       </div>
 
       <div id="winnersBox" class="winners hidden">
-        <div class="winners-title">Last round winners</div>
-        <ol id="winnersList"></ol>
+        <div class="winners-title">Recent round winners</div>
+        <div id="recentRounds"></div>
+      </div>
+
+      <div id="highScoresBox" class="winners hidden">
+        <div class="winners-title">🏆 All-time high scores</div>
+        <ol id="highScoresList"></ol>
       </div>
     </div>
     <div class="footer">Not financial advice. Play responsibly.</div>

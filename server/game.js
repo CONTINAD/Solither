@@ -37,6 +37,19 @@ export const SKINS = [
 ];
 const colors = SKINS;
 
+// Basic, tasteful profanity mask (case-insensitive). Names are also HTML-escaped client-side.
+const PROFANITY = [/fuck/gi, /shit/gi, /cunt/gi, /bitch/gi, /asshole/gi, /\bnigg(er|a)\b/gi, /faggot/gi, /retard/gi];
+
+export function sanitizeName(raw) {
+  let s = String(raw == null ? '' : raw);
+  // Strip control + zero-width characters, collapse whitespace, clamp length.
+  s = s.replace(/[\u0000-\u001F\u007F-\u009F\u200B-\u200D\uFEFF]/g, '');
+  s = s.replace(/\s+/g, ' ').trim().slice(0, 16);
+  for (const re of PROFANITY) s = s.replace(re, (m) => '*'.repeat(m.length));
+  s = s.trim();
+  return s.length ? s : 'Anon';
+}
+
 function rand(min, max) { return min + Math.random() * (max - min); }
 function dist2(ax, ay, bx, by) { const dx = ax - bx, dy = ay - by; return dx * dx + dy * dy; }
 function clampToWorld(x, y) {
@@ -86,7 +99,7 @@ export class Game {
     }
     const player = {
       id,
-      name: (name || 'Anon').slice(0, 16),
+      name: sanitizeName(name),
       wallet: wallet || null,
       isBot,
       socketId,
@@ -164,6 +177,7 @@ export class Game {
       speed = BOOST_SPEED;
       if (this.tick % BOOST_COST_TICKS === 0) {
         p.length -= 1;
+        p.score = Math.max(0, p.score - 1); // boosting burns leaderboard points too
         // Drop a glowing pellet behind you as you burn length — collectible by anyone.
         const tail = p.trail[p.trail.length - 1];
         if (tail) {
