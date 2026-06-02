@@ -22,6 +22,11 @@ one-line note. When all are checked, append new high-value ideas and keep going.
 - [x] Boost now burns leaderboard SCORE too (not just length), floored at 0 — wasting mass on boost costs you rank (user-requested)
 - [x] Boost mass-drop verified: each boost tick burns 1 length + drops a booster-colored r=6 pellet at the tail, collectible by anyone (headless-tested: 7 burns→7 drops near tail, eater grows)
 
+## Mechanics polish (user-requested)
+- [x] Soft wall: hitting the edge no longer kills — you clamp at the boundary and glide along the tangent (players + bots). Verified: drives into wall, stays alive at r=7000.
+- [x] Chunky death loot: corpses drop high-value pellets scaling with size (3 + length/45, cap 9) at bigger radius — eating a kill pays off, not a trail of +1s. Verified value-7/r-14 on a big snake.
+- [x] Easier bots: shorter sight (prey 260, danger 100), no boost-chasing, looser aim, and only ~half (per-bot _aggro>0.5) actively hunt. BOT_TARGET=20.
+
 ## Anti-grief (user-requested)
 - [x] Anti-coil: if a snake's head stays within 230u of an anchor for >~5s (coiling in a ball / camping), it bleeds 1 length+score every 6 ticks until it moves out; floors at START_LENGTH (won't kill). Client shows a throttled "stop coiling" toast. Verified headlessly (coiler drains, floor holds, mover exempt).
 

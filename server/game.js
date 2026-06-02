@@ -24,7 +24,7 @@ const START_LENGTH = 20;         // initial number of trail points
 const POINT_SPACING = 4;         // distance between recorded trail points
 const SEGMENT_EVERY = 5;         // render a body circle every N trail points
 const FOOD_TARGET = 2400;        // scales with the larger world (keeps decent food density)
-const BOT_TARGET = 16;           // bots kept alive to fill the (now larger) arena
+const BOT_TARGET = 20;           // bots kept alive to fill the (now larger) arena
 const BOOST_COST_TICKS = 6;      // lose 1 length every this many ticks while boosting
 const MIN_BOOST_LENGTH = 12;     // can't boost below this length
 const COIL_RADIUS = 230;         // if your head stays within this radius of an anchor…
@@ -55,6 +55,7 @@ export function sanitizeName(raw) {
 
 function rand(min, max) { return min + Math.random() * (max - min); }
 function dist2(ax, ay, bx, by) { const dx = ax - bx, dy = ay - by; return dx * dx + dy * dy; }
+function angWrap(a) { while (a > Math.PI) a -= Math.PI * 2; while (a < -Math.PI) a += Math.PI * 2; return a; }
 function clampToWorld(x, y) {
   const d = Math.hypot(x, y);
   if (d <= WORLD.radius) return { x, y, hitWall: false };
@@ -126,6 +127,7 @@ export class Game {
       coiling: false,
       // bot ai memory
       _wander: angle,
+      _aggro: Math.random(), // 0..1 — only >0.5 bots actively hunt (keeps bots beatable)
     };
     this.players.set(id, player);
     return player;
@@ -233,17 +235,14 @@ export class Game {
     const clamped = clampToWorld(nx, ny);
     p.x = clamped.x;
     p.y = clamped.y;
-    if (clamped.hitWall && !p.isBot) {
-      // Players die on the wall; bots bounce to stay alive.
-    }
     if (clamped.hitWall) {
-      if (p.isBot) {
-        p.angle += Math.PI; // turn around
-        p.targetAngle = p.angle;
-      } else {
-        this.kill(p, 'wall');
-        return;
-      }
+      // Soft wall: nobody dies at the edge — glide along it. Steer toward whichever
+      // tangent is closest to the current heading so the snake slides instead of pinning.
+      const inward = Math.atan2(-p.y, -p.x);
+      const t1 = inward + Math.PI / 2, t2 = inward - Math.PI / 2;
+      const tangent = Math.abs(angWrap(t1 - p.angle)) < Math.abs(angWrap(t2 - p.angle)) ? t1 : t2;
+      p.angle += Math.max(-TURN_RATE, Math.min(TURN_RATE, angWrap(tangent - p.angle)));
+      if (p.isBot) p.targetAngle = p.angle;
     }
 
     // Record trail.
@@ -323,11 +322,15 @@ export class Game {
   kill(p, cause, killer = null) {
     if (!p.alive) return;
     p.alive = false;
-    // Scatter the snake's body into food.
-    for (let i = 0; i < p.trail.length; i += 3) {
+    // Scatter the corpse into CHUNKY loot — bigger snakes drop higher-value, bigger pellets,
+    // so eating a kill is a real payoff (not a trail of +1s).
+    const dropVal = Math.max(3, Math.min(9, 3 + Math.floor(p.length / 45)));
+    for (let i = 0; i < p.trail.length; i += 4) {
       const s = p.trail[i];
       if (Math.random() < 0.7) {
-        this.food.push(this.spawnFood(s.x + rand(-8, 8), s.y + rand(-8, 8), 2, p.color));
+        const drop = this.spawnFood(s.x + rand(-10, 10), s.y + rand(-10, 10), dropVal, p.color);
+        drop.r = 7 + Math.min(7, dropVal);
+        this.food.push(drop);
       }
     }
     if (killer) {
@@ -373,15 +376,15 @@ export class Game {
 
     // 2. Scan others for danger (nearby bodies) and prey (smaller, closeby heads).
     let avoidX = 0, avoidY = 0, danger = false;
-    const dangerR = 130 + headR;
+    const dangerR = 100 + headR;        // react closer → easier for players to cut them off
     const dangerR2 = dangerR * dangerR;
-    let prey = null, preyD2 = 440 * 440;
+    let prey = null, preyD2 = 260 * 260; // shorter prey sight (easier bots)
 
     for (const o of this.players.values()) {
       if (!o.alive || o.id === p.id) continue;
       // Repulsion from nearby body segments (sampled sparsely for speed).
       const samples = o.trail;
-      for (let i = 0; i < samples.length; i += 10) {
+      for (let i = 0; i < samples.length; i += 14) {
         const s = samples[i];
         const d2 = dist2(p.x, p.y, s.x, s.y);
         if (d2 < dangerR2) {
@@ -394,7 +397,7 @@ export class Game {
       }
       // Prey = a notably smaller snake's head within range.
       const hd2 = dist2(p.x, p.y, o.x, o.y);
-      if (o.length < p.length * 0.85 && hd2 < preyD2) { preyD2 = hd2; prey = o; }
+      if (o.length < p.length * 0.7 && hd2 < preyD2) { preyD2 = hd2; prey = o; }
     }
 
     // 2a. Flee danger first.
@@ -405,14 +408,14 @@ export class Game {
       return;
     }
 
-    // 3. Hunt: aim slightly ahead of the prey's head to cut it off.
-    if (prey) {
-      const lead = 45;
+    // 3. Hunt — only the more aggressive bots, no boost-chasing, loose aim (easy to juke).
+    if (prey && p._aggro > 0.5) {
+      const lead = 30;
       const tx = prey.x + Math.cos(prey.angle) * lead;
       const ty = prey.y + Math.sin(prey.angle) * lead;
       p.targetAngle = Math.atan2(ty - p.y, tx - p.x);
       p._wander = p.targetAngle;
-      p.boosting = preyD2 < 280 * 280 && p.length > 35; // burst to close in
+      p.boosting = false; // bots never boost-chase anymore
       return;
     }
 
