@@ -132,7 +132,7 @@ io.on('connection', (socket) => {
       ok: true,
       playerId,
       balance: result.balance,
-      world: { radius: 2600 },
+      world: { radius: SIM.worldRadius },
       round: rounds.status(),
     });
   });
