@@ -617,9 +617,29 @@ window.addEventListener('mouseup', () => { boosting = false; });
 window.addEventListener('keydown', (e) => { if (e.code === 'Space') boosting = true; });
 window.addEventListener('keyup', (e) => { if (e.code === 'Space') boosting = false; });
 window.addEventListener('contextmenu', (e) => e.preventDefault());
-window.addEventListener('touchstart', (e) => { boosting = true; if (e.touches[0]) { mouse.x = e.touches[0].clientX; mouse.y = e.touches[0].clientY; } }, { passive: true });
-window.addEventListener('touchmove', (e) => { if (e.touches[0]) { mouse.x = e.touches[0].clientX; mouse.y = e.touches[0].clientY; } }, { passive: true });
-window.addEventListener('touchend', () => { boosting = false; });
+// Touch: drag ANYWHERE to steer (no boost). Boost is the dedicated button ONLY,
+// so steering no longer wastes mass/score on boost (mobile fix). The steering finger
+// is tracked by identifier and ignores touches that begin on the boost button.
+let steerTouchId = null;
+const isBoostTouch = (t) => t.target && t.target.closest && t.target.closest('#boostBtn');
+window.addEventListener('touchstart', (e) => {
+  for (const t of e.changedTouches) {
+    if (isBoostTouch(t)) continue;
+    if (steerTouchId === null) { steerTouchId = t.identifier; mouse.x = t.clientX; mouse.y = t.clientY; }
+  }
+}, { passive: true });
+window.addEventListener('touchmove', (e) => {
+  for (const t of e.changedTouches) {
+    if (t.identifier === steerTouchId) { mouse.x = t.clientX; mouse.y = t.clientY; }
+  }
+}, { passive: true });
+function endSteerTouch(e) {
+  for (const t of e.changedTouches) {
+    if (t.identifier === steerTouchId) steerTouchId = null;
+  }
+}
+window.addEventListener('touchend', endSteerTouch, { passive: true });
+window.addEventListener('touchcancel', endSteerTouch, { passive: true });
 
 // Mobile / click boost button.
 const boostBtn = $('boostBtn');
