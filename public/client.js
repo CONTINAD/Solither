@@ -238,7 +238,7 @@ function fetchRewards() {
 function renderRewards(d) {
   if (!d) return;
   $('rbTotal').textContent = fmtSol(d.totalSol);
-  $('rbSub').textContent = `From creator fees · top ${serverConfig.rewardTopN} split 30/20/15/10/10% · ${d.rounds || 0} rounds paid`;
+  $('rbSub').textContent = `From creator fees · top ${serverConfig.rewardTopN} split 35/25/15/10/5% · ${d.rounds || 0} rounds paid`;
   $('rewardsBanner').classList.remove('hidden');
 
   if (d.top && d.top.length) {
@@ -373,6 +373,21 @@ function connectAndJoin(name, wallet) {
 function setConn(ok) {
   const d = $('connDot');
   if (d) d.classList.toggle('off', !ok);
+}
+
+// Shown when the connection drops mid-game (almost always a deploy rolling out).
+let updateCountdownTimer = null;
+function showUpdateOverlay() {
+  const ov = $('updateOverlay'); if (!ov) return;
+  ov.classList.remove('hidden');
+  let n = 20;
+  const cd = $('updateCountdown'); if (cd) cd.textContent = n;
+  clearInterval(updateCountdownTimer);
+  updateCountdownTimer = setInterval(() => { n = Math.max(0, n - 1); if (cd) cd.textContent = n; }, 1000);
+}
+function hideUpdateOverlay() {
+  const ov = $('updateOverlay'); if (ov) ov.classList.add('hidden');
+  clearInterval(updateCountdownTimer);
 }
 
 function populatePlayerBadge() {
@@ -510,6 +525,7 @@ function wireSocket() {
   // ── Connection status + auto-reconnect ──
   socket.on('connect', () => {
     setConn(true);
+    hideUpdateOverlay(); // back online — clear the "update pushing" screen
     if (hasJoinedOnce && reconnectResume) {
       socket.emit('join', lastJoin, (resp) => {
         if (resp && resp.ok) {
@@ -529,7 +545,9 @@ function wireSocket() {
   socket.on('disconnect', () => {
     setConn(false);
     SFX.stopBoost();
-    if (playing || spectating) { reconnectResume = true; showToast('Connection lost — reconnecting…'); }
+    // Mid-game drop is almost always a deploy rolling out — show the update screen
+    // and auto-reconnect (socket.io keeps retrying; ~20s covers a Railway redeploy).
+    if (playing || spectating) { reconnectResume = true; showUpdateOverlay(); }
     playing = false;
   });
 

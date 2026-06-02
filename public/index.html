@@ -188,6 +188,15 @@
     <button id="specRespawnBtn">Respawn</button>
   </div>
 
+  <!-- ── Update / reconnecting overlay ───────────────────── -->
+  <div id="updateOverlay" class="hidden">
+    <div class="update-card">
+      <div class="update-spinner"></div>
+      <div class="update-title">Update pushing…</div>
+      <div class="update-sub">A new version is rolling out. Please wait <b id="updateCountdown">20</b>s — you'll be reconnected automatically.</div>
+    </div>
+  </div>
+
   <script src="/socket.io/socket.io.js"></script>
   <script src="client.js"></script>
 </body>

@@ -10,9 +10,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
 const ROUNDS_FILE = path.join(DATA_DIR, 'rounds.json');
 
-// Fixed SOL split by rank (top 5): 30/20/15/10/10% of the pool = 85% to players.
-// NOT normalized — the remaining 15% (and any unfilled ranks) is the creator's cut.
-const REWARD_WEIGHTS = [0.30, 0.20, 0.15, 0.10, 0.10];
+// Fixed SOL split by rank (top 5): 35/25/15/10/5% of the pool = 90% to players.
+// NOT normalized — the remaining 10% (and any unfilled ranks) is the creator's cut.
+const REWARD_WEIGHTS = [0.35, 0.25, 0.15, 0.10, 0.05];
 
 // ─────────────────────────────────────────────────────────────
 // Reward rounds: every ROUND_SECONDS, snapshot the top N *human*

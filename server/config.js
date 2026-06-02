@@ -13,7 +13,7 @@ export const config = {
   tokenMint: (process.env.TOKEN_MINT || '').trim(),
   minTokenBalance: num(process.env.MIN_TOKEN_BALANCE, 250000),
   rpcUrl: (process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com').trim(),
-  balanceCacheSeconds: num(process.env.BALANCE_CACHE_SECONDS, 120),
+  balanceCacheSeconds: num(process.env.BALANCE_CACHE_SECONDS, 30),
 
   // Max concurrent human players (protects performance). Excess joins get "arena full".
   // Reshaped for 150: larger world (effective area-of-interest culling) + 18Hz broadcast.
