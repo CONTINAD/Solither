@@ -47,4 +47,9 @@ one-line note. When all are checked, append new high-value ideas and keep going.
 
 ## Stretch
 - [x] Spatial hash grid collision broad-phase (CELL=120, 3×3 query): O(snakes×segments) → ~O(total-segments) for many-player scaling. Headless-tested (head-on-body kills+credits, no self-collision, far-apart safe); runs clean in-game.
-- [ ] Settings panel: toggle sound, minimap, particles
+- [x] Settings panel (⚙ in HUD): toggle Sound / Minimap / Particles, persisted to localStorage. Minimap toggle hides wrapper + skips draw; particles toggle gates boost fx/eat pops/confetti. (verified toggles + persistence)
+
+## Round 2 ideas (backlog cleared — fresh high-value items)
+- [x] Max-player cap (MAX_PLAYERS, default 50): join rejected over capacity with "Arena is full (N players)" (verified reject at 0 + normal join at 50)
+- [ ] Round-end urgency cue: last-10s screen-edge pulse + countdown tick sound (tension around the reward moment)
+- [ ] Spectate upgrade: tap/click to cycle through the top players instead of only watching #1

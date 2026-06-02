@@ -15,6 +15,9 @@ export const config = {
   rpcUrl: (process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com').trim(),
   balanceCacheSeconds: num(process.env.BALANCE_CACHE_SECONDS, 120),
 
+  // Max concurrent human players (protects performance). Excess joins get "arena full".
+  maxPlayers: num(process.env.MAX_PLAYERS, 50),
+
   // Rounds
   roundSeconds: num(process.env.ROUND_SECONDS, 180),
   rewardTopN: num(process.env.REWARD_TOP_N, 3),

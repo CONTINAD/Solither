@@ -113,6 +113,12 @@ let hasJoinedOnce = false;
 let reconnectResume = false; // were we in-world when the connection dropped?
 let selectedSkin = localStorage.getItem('solither_skin') || null;
 
+// Player settings (persisted). Sound is governed by SFX (solither_muted).
+const settings = {
+  minimap: localStorage.getItem('solither_minimap') !== '0',
+  particles: localStorage.getItem('solither_particles') !== '0',
+};
+
 const NET_HZ = 22;
 const INTERP_DELAY = 95; // ms behind realtime for smooth remote motion
 const buffer = [];       // [{ t, byId:Map, food }]
@@ -381,7 +387,9 @@ function wireSocket() {
       // Detect eating (length up) for the "+N" pop + head flash.
       if (prevLen !== null && s.me.length > prevLen && pred.active) {
         const gain = s.me.length - prevLen;
-        pops.push({ x: pred.x, y: pred.y - bodyRadius(pred.length) - 8, vy: -0.45, text: '+' + gain, life: 0, max: 750, color: pred.color });
+        if (settings.particles) {
+          pops.push({ x: pred.x, y: pred.y - bodyRadius(pred.length) - 8, vy: -0.45, text: '+' + gain, life: 0, max: 750, color: pred.color });
+        }
         headFlashUntil = performance.now() + 150;
         SFX.eat();
       }
@@ -576,6 +584,7 @@ function showRoundWin(record) {
 
 const CONFETTI_COLORS = ['#14F195', '#9945FF', '#fff', '#F72585', '#FFD166', '#4CC9F0'];
 function spawnConfetti(n) {
+  if (!settings.particles) return;
   const W = window.innerWidth;
   for (let i = 0; i < n; i++) {
     confetti.push({
@@ -704,6 +713,37 @@ if (muteBtn) {
   });
 }
 
+// Settings panel (sound / minimap / particles), persisted to localStorage.
+function applyMinimapVisibility() {
+  const w = $('minimapWrap');
+  if (w) w.style.display = settings.minimap ? '' : 'none';
+}
+applyMinimapVisibility();
+
+const settingsBtn = $('settingsBtn');
+const settingsPanel = $('settingsPanel');
+if (settingsBtn && settingsPanel) {
+  const syncSettingsUI = () => {
+    $('setSound').checked = !SFX.isMuted();
+    $('setMinimap').checked = settings.minimap;
+    $('setParticles').checked = settings.particles;
+  };
+  settingsBtn.addEventListener('click', () => {
+    const nowHidden = settingsPanel.classList.toggle('hidden');
+    if (!nowHidden) syncSettingsUI();
+  });
+  $('setSound').addEventListener('change', (e) => { SFX.init(); SFX.setMuted(!e.target.checked); renderMute(); });
+  $('setMinimap').addEventListener('change', (e) => {
+    settings.minimap = e.target.checked;
+    localStorage.setItem('solither_minimap', e.target.checked ? '1' : '0');
+    applyMinimapVisibility();
+  });
+  $('setParticles').addEventListener('change', (e) => {
+    settings.particles = e.target.checked;
+    localStorage.setItem('solither_particles', e.target.checked ? '1' : '0');
+  });
+}
+
 // Send input to server ~22x/s.
 setInterval(() => {
   if (!playing || !socket) return;
@@ -737,7 +777,7 @@ function predict(dtMs) {
   if (isBoosting) {
     speed = SIM.boostSpeed;
     // Emit flame particles out the back of the head.
-    if (pred.trail.length > 1) {
+    if (settings.particles && pred.trail.length > 1) {
       const back = pred.a + Math.PI;
       for (let i = 0; i < 2; i++) {
         const spread = (Math.random() - 0.5) * 0.7;
@@ -936,9 +976,8 @@ function render(now) {
   ctx.restore();
 
   drawConfetti(); // screen-space, above the world
+  if (settings.minimap) drawMinimap(remotes);
   updateBoostHud();
-
-  drawMinimap(remotes);
 }
 
 // ── Parallax starfield + nebula background ───────────────────

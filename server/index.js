@@ -102,6 +102,11 @@ io.on('connection', (socket) => {
 
   socket.on('join', async ({ wallet, name, color }, ack) => {
     if (onCooldown('join', 1000)) { ack?.({ ok: false, reason: 'Slow down a moment and try again.' }); return; }
+    // Capacity guard — keep the arena within the configured player cap.
+    if (playerId == null && socketByPlayerId.size >= config.maxPlayers) {
+      ack?.({ ok: false, reason: `Arena is full (${config.maxPlayers} players). Try again in a moment.` });
+      return;
+    }
     const result = await verifyWallet(wallet);
     if (!result.ok) {
       ack?.({ ok: false, reason: result.reason });
