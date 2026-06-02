@@ -16,10 +16,8 @@ export const config = {
   balanceCacheSeconds: num(process.env.BALANCE_CACHE_SECONDS, 120),
 
   // Max concurrent human players (protects performance). Excess joins get "arena full".
-  // Measured ceiling (current world + JSON protocol): ~75 = full 22Hz, 100 ≈ 18Hz (playable),
-  // 150 ≈ 8.5Hz (choppy). Reaching smooth 150 needs a bigger world (effective AoI culling)
-  // ± lower NET_HZ ± binary protocol. 100 = interim playable cap.
-  maxPlayers: num(process.env.MAX_PLAYERS, 100),
+  // Reshaped for 150: larger world (effective area-of-interest culling) + 18Hz broadcast.
+  maxPlayers: num(process.env.MAX_PLAYERS, 150),
 
   // Rounds
   roundSeconds: num(process.env.ROUND_SECONDS, 180),

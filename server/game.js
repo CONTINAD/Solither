@@ -2,7 +2,7 @@
 // Solither game engine — server-authoritative slither simulation.
 // ─────────────────────────────────────────────────────────────
 
-export const WORLD = { radius: 2600 };
+export const WORLD = { radius: 5500 };
 
 // Shared with the client for prediction — keep in sync with the constants below.
 export const SIM = {
@@ -13,7 +13,7 @@ export const SIM = {
   pointSpacing: 4,
   startLength: 20,
   minBoostLength: 12,
-  worldRadius: 2600,
+  worldRadius: 5500,
 };
 
 const TICK_RATE = 30;            // simulation steps per second
@@ -23,8 +23,8 @@ const TURN_RATE = 0.24;          // max radians the head can turn per tick
 const START_LENGTH = 20;         // initial number of trail points
 const POINT_SPACING = 4;         // distance between recorded trail points
 const SEGMENT_EVERY = 5;         // render a body circle every N trail points
-const FOOD_TARGET = 600;         // number of food pellets kept in the world
-const BOT_TARGET = 8;            // bots kept alive to fill the arena
+const FOOD_TARGET = 1800;        // scales with the larger world (keeps decent food density)
+const BOT_TARGET = 14;           // bots kept alive to fill the (now larger) arena
 const BOOST_COST_TICKS = 6;      // lose 1 length every this many ticks while boosting
 const MIN_BOOST_LENGTH = 12;     // can't boost below this length
 const COIL_RADIUS = 230;         // if your head stays within this radius of an anchor…
