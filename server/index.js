@@ -58,7 +58,7 @@ const game = new Game();
 const rounds = new RoundManager(game, io);
 
 const socketByPlayerId = new Map(); // playerId -> socket
-const spectating = new Set();       // playerIds currently spectating (dead, watching #1)
+const spectating = new Map();       // spectator playerId -> watched targetId (null = auto/leader)
 
 game.onDeath = (player, cause, killer) => {
   // Global kill-feed event for collision kills (includes bots — it's fun to read).
@@ -137,8 +137,10 @@ io.on('connection', (socket) => {
     if (playerId != null) game.setInput(playerId, data || {});
   });
 
-  socket.on('spectate', () => {
-    if (playerId != null && !onCooldown('spectate', 400)) spectating.add(playerId);
+  socket.on('spectate', (data) => {
+    if (playerId == null || onCooldown('spectate', 250)) return;
+    // data.targetId picks a specific snake to watch; null/absent = auto-follow the leader.
+    spectating.set(playerId, (data && data.targetId) || null);
   });
 
   socket.on('respawn', (_, ack) => {
@@ -179,14 +181,20 @@ setInterval(() => {
     const player = game.players.get(pid);
     if (!player) continue;
 
-    // When a dead player is spectating, re-center the snapshot on the live leader.
+    // When a dead player is spectating, re-center the snapshot on their watched target
+    // (or the live leader if no target / the target died).
     let center = player;
     let spectate = null;
     if (!player.alive && spectating.has(pid)) {
-      const top = game.topAliveSnake();
-      if (top) {
-        center = top;
-        spectate = { x: Math.round(top.x), y: Math.round(top.y), name: top.name, score: top.score };
+      const targetId = spectating.get(pid);
+      let target = targetId != null ? game.players.get(targetId) : null;
+      if (!target || !target.alive) {
+        target = game.topAliveSnake();
+        spectating.set(pid, target ? target.id : null);
+      }
+      if (target) {
+        center = target;
+        spectate = { id: target.id, x: Math.round(target.x), y: Math.round(target.y), name: target.name, score: target.score };
       }
     }
 

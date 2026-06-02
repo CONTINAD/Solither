@@ -156,7 +156,7 @@ const cam = { x: 0, y: 0, init: false };
 
 // Spectate: when dead and watching, follow the live leader's head.
 let spectating = false;
-const specTarget = { x: 0, y: 0, has: false };
+const specTarget = { x: 0, y: 0, has: false, id: null };
 
 // ── Load public config ───────────────────────────────────────
 fetch('/api/config').then((r) => r.json()).then((cfg) => {
@@ -379,6 +379,7 @@ function wireSocket() {
     // Spectate target (sent only while we're spectating the leader).
     if (spectating && s.spectate) {
       specTarget.x = s.spectate.x; specTarget.y = s.spectate.y; specTarget.has = true;
+      specTarget.id = s.spectate.id;
       const nm = $('specName');
       if (nm) nm.textContent = s.spectate.name;
     }
@@ -523,11 +524,21 @@ $('respawnBtn').addEventListener('click', doRespawn);
 $('specRespawnBtn').addEventListener('click', doRespawn);
 
 $('spectateBtn').addEventListener('click', () => {
-  spectating = true; specTarget.has = false;
+  spectating = true; specTarget.has = false; specTarget.id = null;
   socket.emit('spectate');
   $('deathScreen').classList.add('hidden');
   $('spectateBar').classList.remove('hidden');
 });
+
+function cycleSpectate(dir) {
+  if (!spectating || !socket) return;
+  const lb = leaderboardData || [];
+  if (!lb.length) return;
+  let idx = lb.findIndex((p) => p.id === specTarget.id);
+  idx = idx < 0 ? 0 : (idx + dir + lb.length) % lb.length;
+  socket.emit('spectate', { targetId: lb[idx].id });
+}
+$('specNextBtn').addEventListener('click', () => cycleSpectate(1));
 
 $('quitBtn').addEventListener('click', () => {
   playing = false; pred.active = false;
@@ -670,7 +681,13 @@ function showToast(msg) {
 window.addEventListener('mousemove', (e) => { mouse.x = e.clientX; mouse.y = e.clientY; });
 window.addEventListener('mousedown', () => { boosting = true; });
 window.addEventListener('mouseup', () => { boosting = false; });
-window.addEventListener('keydown', (e) => { if (e.code === 'Space') boosting = true; });
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'Space') boosting = true;
+  if (spectating) {
+    if (e.code === 'ArrowRight') cycleSpectate(1);
+    else if (e.code === 'ArrowLeft') cycleSpectate(-1);
+  }
+});
 window.addEventListener('keyup', (e) => { if (e.code === 'Space') boosting = false; });
 window.addEventListener('contextmenu', (e) => e.preventDefault());
 // Touch: drag ANYWHERE to steer (no boost). Boost is the dedicated button ONLY,

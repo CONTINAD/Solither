@@ -503,6 +503,11 @@ canvas#game {
   color: #06110b;
   background: linear-gradient(90deg, var(--sol-green), var(--sol-purple));
 }
+#specNextBtn {
+  background: transparent;
+  color: #fff;
+  border: 1px solid var(--panel-border);
+}
 
 #deathScreen {
   position: fixed;
