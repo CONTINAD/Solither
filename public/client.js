@@ -198,8 +198,7 @@ function fetchRewards() {
 function renderRewards(d) {
   if (!d) return;
   $('rbTotal').textContent = fmtSol(d.totalSol);
-  const pool = d.roundPoolSol || 0;
-  $('rbSub').textContent = `${fmtSol(pool)} SOL/round · split among top ${serverConfig.rewardTopN} · ${d.rounds || 0} rounds paid`;
+  $('rbSub').textContent = `From creator fees · top ${serverConfig.rewardTopN} split 30/20/15/10/10% · ${d.rounds || 0} rounds paid`;
   $('rewardsBanner').classList.remove('hidden');
 
   if (d.top && d.top.length) {

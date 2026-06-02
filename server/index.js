@@ -10,6 +10,7 @@ import { Game, SIM, SKINS } from './game.js';
 import { RoundManager } from './rewards.js';
 import { recordScore, topScores } from './highscores.js';
 import { rewardsSummary } from './rewardsLedger.js';
+import { payoutWinners } from './payout.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
@@ -57,6 +58,7 @@ app.get('/api/rewards', (req, res) => {
 // ── Game + rounds ────────────────────────────────────────────
 const game = new Game();
 const rounds = new RoundManager(game, io);
+rounds.payoutHook = payoutWinners; // sends SOL to winners when PAYOUT_ENABLED (else record-only)
 
 const socketByPlayerId = new Map(); // playerId -> socket
 const spectating = new Map();       // spectator playerId -> watched targetId (null = auto/leader)

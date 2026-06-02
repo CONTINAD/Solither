@@ -72,6 +72,15 @@ canvas#game {
 }
 .rewards-banner .rb-sub { font-size: 11px; opacity: 0.55; margin-top: 2px; }
 
+.lobby-logo {
+  display: block;
+  width: 92px;
+  height: 92px;
+  margin: 0 auto 8px;
+  border-radius: 20px;
+  box-shadow: 0 8px 30px rgba(153, 69, 255, 0.4);
+}
+
 .logo {
   font-size: 44px;
   font-weight: 700;
