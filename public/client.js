@@ -68,48 +68,7 @@ const SFX = (() => {
       [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => blip(f, 0.2, 'square', 0.2), i * 110));
     },
     startBoost() {
-      if (!ctx || muted || boostNodes.length) return;
-      const t = ctx.currentTime;
-
-      // Master boost bus.
-      boostGain = ctx.createGain();
-      boostGain.gain.setValueAtTime(0.0001, t);
-      boostGain.gain.linearRampToValueAtTime(0.17, t + 0.14);
-      boostGain.connect(master);
-
-      // 1) Rushing air — looping white noise through a sweeping bandpass.
-      const buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 2), ctx.sampleRate);
-      const data = buf.getChannelData(0);
-      for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
-      const noise = ctx.createBufferSource();
-      noise.buffer = buf; noise.loop = true;
-      const bp = ctx.createBiquadFilter();
-      bp.type = 'bandpass'; bp.Q.value = 0.7;
-      bp.frequency.setValueAtTime(340, t);
-      bp.frequency.linearRampToValueAtTime(950, t + 0.35);
-      const lp = ctx.createBiquadFilter();
-      lp.type = 'lowpass'; lp.frequency.value = 2400;
-      const noiseGain = ctx.createGain(); noiseGain.gain.value = 0.55;
-      noise.connect(bp); bp.connect(lp); lp.connect(noiseGain); noiseGain.connect(boostGain);
-      noise.start();
-
-      // 2) Turbo spool — a tonal whine that ramps UP in pitch then holds (the turbine).
-      const whine = ctx.createOscillator();
-      whine.type = 'sawtooth';
-      whine.frequency.setValueAtTime(360, t);
-      whine.frequency.exponentialRampToValueAtTime(2300, t + 0.55); // spool-up
-      const whinePeak = ctx.createBiquadFilter();
-      whinePeak.type = 'lowpass'; whinePeak.frequency.value = 3200; whinePeak.Q.value = 7; // resonant edge
-      const whineGain = ctx.createGain(); whineGain.gain.value = 0.055;
-      whine.connect(whinePeak); whinePeak.connect(whineGain); whineGain.connect(boostGain);
-      whine.start();
-
-      // 3) Fast flutter on the whine — spinning-turbine shimmer.
-      const lfo = ctx.createOscillator(); lfo.frequency.value = 7;
-      const lfoGain = ctx.createGain(); lfoGain.gain.value = 70;
-      lfo.connect(lfoGain); lfoGain.connect(whine.frequency); lfo.start();
-
-      boostNodes = [noise, whine, lfo];
+      // Boost is silent for now (the buzz and the turbo both sounded bad). No-op.
     },
     stopBoost,
   };
