@@ -9,7 +9,7 @@ const $ = (id) => document.getElementById(id);
 // ── Sound (Web Audio, all synthesized — no asset files) ──────
 const SFX = (() => {
   let ctx = null, master = null, muted = localStorage.getItem('solither_muted') === '1';
-  let boostOsc = null, boostGain = null, boostLfo = null, lastEat = 0;
+  let boostNodes = [], boostGain = null, lastEat = 0;
 
   function ensure() {
     if (!ctx) {
@@ -36,13 +36,12 @@ const SFX = (() => {
   }
 
   function stopBoost() {
-    if (boostOsc) {
+    if (boostNodes.length) {
       try {
-        boostGain.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + 0.12);
-        boostOsc.stop(ctx.currentTime + 0.14);
-        if (boostLfo) boostLfo.stop(ctx.currentTime + 0.14);
+        boostGain.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + 0.14);
+        for (const n of boostNodes) n.stop(ctx.currentTime + 0.16);
       } catch (e) { /* already stopped */ }
-      boostOsc = null; boostGain = null; boostLfo = null;
+      boostNodes = []; boostGain = null;
     }
   }
 
@@ -69,40 +68,48 @@ const SFX = (() => {
       [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => blip(f, 0.2, 'square', 0.2), i * 110));
     },
     startBoost() {
-      if (!ctx || muted || boostOsc) return;
+      if (!ctx || muted || boostNodes.length) return;
       const t = ctx.currentTime;
-      // Airy "woosh": looping white noise through a bandpass, with the band sweeping
-      // up on start (the whoosh onset) and a slow wobble for a wind-like body.
+
+      // Master boost bus.
+      boostGain = ctx.createGain();
+      boostGain.gain.setValueAtTime(0.0001, t);
+      boostGain.gain.linearRampToValueAtTime(0.17, t + 0.14);
+      boostGain.connect(master);
+
+      // 1) Rushing air — looping white noise through a sweeping bandpass.
       const buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 2), ctx.sampleRate);
       const data = buf.getChannelData(0);
       for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
-      boostOsc = ctx.createBufferSource(); // (kept in boostOsc so stopBoost() stops it)
-      boostOsc.buffer = buf;
-      boostOsc.loop = true;
-
+      const noise = ctx.createBufferSource();
+      noise.buffer = buf; noise.loop = true;
       const bp = ctx.createBiquadFilter();
-      bp.type = 'bandpass';
-      bp.Q.value = 0.7;
-      bp.frequency.setValueAtTime(320, t);
-      bp.frequency.linearRampToValueAtTime(820, t + 0.22); // sweep up = the "whoosh"
+      bp.type = 'bandpass'; bp.Q.value = 0.7;
+      bp.frequency.setValueAtTime(340, t);
+      bp.frequency.linearRampToValueAtTime(950, t + 0.35);
       const lp = ctx.createBiquadFilter();
-      lp.type = 'lowpass';
-      lp.frequency.value = 1900;
+      lp.type = 'lowpass'; lp.frequency.value = 2400;
+      const noiseGain = ctx.createGain(); noiseGain.gain.value = 0.55;
+      noise.connect(bp); bp.connect(lp); lp.connect(noiseGain); noiseGain.connect(boostGain);
+      noise.start();
 
-      // Slow wind wobble on the band center.
-      boostLfo = ctx.createOscillator();
-      boostLfo.frequency.value = 0.8;
-      const lfoGain = ctx.createGain();
-      lfoGain.gain.value = 170;
-      boostLfo.connect(lfoGain); lfoGain.connect(bp.frequency);
+      // 2) Turbo spool — a tonal whine that ramps UP in pitch then holds (the turbine).
+      const whine = ctx.createOscillator();
+      whine.type = 'sawtooth';
+      whine.frequency.setValueAtTime(360, t);
+      whine.frequency.exponentialRampToValueAtTime(2300, t + 0.55); // spool-up
+      const whinePeak = ctx.createBiquadFilter();
+      whinePeak.type = 'lowpass'; whinePeak.frequency.value = 3200; whinePeak.Q.value = 7; // resonant edge
+      const whineGain = ctx.createGain(); whineGain.gain.value = 0.055;
+      whine.connect(whinePeak); whinePeak.connect(whineGain); whineGain.connect(boostGain);
+      whine.start();
 
-      boostGain = ctx.createGain();
-      boostGain.gain.setValueAtTime(0.0001, t);
-      boostGain.gain.linearRampToValueAtTime(0.16, t + 0.14);
+      // 3) Fast flutter on the whine — spinning-turbine shimmer.
+      const lfo = ctx.createOscillator(); lfo.frequency.value = 7;
+      const lfoGain = ctx.createGain(); lfoGain.gain.value = 70;
+      lfo.connect(lfoGain); lfoGain.connect(whine.frequency); lfo.start();
 
-      boostOsc.connect(bp); bp.connect(lp); lp.connect(boostGain); boostGain.connect(master);
-      boostOsc.start();
-      boostLfo.start();
+      boostNodes = [noise, whine, lfo];
     },
     stopBoost,
   };
