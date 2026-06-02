@@ -390,6 +390,39 @@ export class Game {
     });
   }
 
+  // Full arena wipe (called every few rounds): clear the food field, drop all bots
+  // (re-spawned fresh by the next tick), and reset every live human snake back to a
+  // clean start — score 0, start length, new position. A total fresh competition.
+  resetArena() {
+    // Fresh food field (also clears all +5 orbs).
+    this.food = [];
+    for (let i = 0; i < FOOD_TARGET; i++) this.food.push(this.spawnFood());
+
+    // Drop every bot; step()'s top-up repopulates BOT_TARGET fresh ones next tick.
+    for (const p of [...this.players.values()]) if (p.isBot) this.players.delete(p.id);
+
+    // Reset each remaining (human) snake in place — no death screen, just a clean slate.
+    for (const p of this.players.values()) {
+      const { x, y } = this.randomSpawnPoint();
+      const angle = rand(0, Math.PI * 2);
+      const trail = [];
+      for (let i = 0; i < START_LENGTH; i++) {
+        trail.push({ x: x - Math.cos(angle) * i * POINT_SPACING, y: y - Math.sin(angle) * i * POINT_SPACING });
+      }
+      p.x = x; p.y = y; p.angle = angle; p.targetAngle = angle;
+      p.trail = trail;
+      p.length = START_LENGTH;
+      p.score = 0;
+      p.peakLength = START_LENGTH;
+      p.boosting = false;
+      p.alive = true;
+      p.spawnAt = Date.now();
+      p.coilAnchor = { x, y };
+      p.coilTicks = 0;
+      p.coiling = false;
+    }
+  }
+
   botThink(p) {
     // Priority: wall > avoid nearby bodies > hunt smaller heads > seek food > wander.
     const headR = this.bodyRadius(p);

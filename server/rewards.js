@@ -121,6 +121,13 @@ export class RoundManager {
       );
     }
 
+    // Every 3rd round: full arena wipe — fresh food, fresh bots, every snake reset.
+    if (this.roundNumber % 3 === 0) {
+      this.game.resetArena();
+      this.io.emit('arenaReset', { afterRound: this.roundNumber });
+      console.log(`[Solither] Arena wiped after round ${this.roundNumber} — fresh start.`);
+    }
+
     // Start the next round.
     this.roundNumber += 1;
     this.roundEndsAt = Date.now() + this.roundLength;

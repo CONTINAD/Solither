@@ -461,6 +461,12 @@ function wireSocket() {
   socket.on('kill', (k) => addKillFeed(k));
   socket.on('multikill', (m) => showMultiKill(m.streak));
   socket.on('roundStarted', (st) => updateRoundUI(st));
+  socket.on('arenaReset', () => {
+    // Server wiped the board — reseed local prediction so we snap cleanly to the
+    // fresh spawn (and the camera re-centers) on the next state.
+    pred.active = false; prevLen = null; buffer.length = 0;
+    if (playing) showToast('🔄 Arena wiped — fresh start, everyone reset!');
+  });
 
   // ── Connection status + auto-reconnect ──
   socket.on('connect', () => {
