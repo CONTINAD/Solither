@@ -507,10 +507,13 @@ function updateRoundUI(round) {
   $('roundPill').classList.toggle('urgent', sec <= 15);
 }
 
+// Show fewer rows on phones so the board doesn't cover the top-right of the screen.
+function leaderboardLimit() { return window.innerWidth <= 560 ? 6 : 10; }
+
 function updateLeaderboard(lb) {
   const list = $('lbList');
   list.innerHTML = '';
-  lb.forEach((p, i) => {
+  lb.slice(0, leaderboardLimit()).forEach((p, i) => {
     const li = document.createElement('li');
     if (p.id === myId) li.classList.add('me');
     if (i < serverConfig.rewardTopN) li.classList.add('top3');
@@ -587,7 +590,7 @@ function drawConfetti() {
 function renderMyRankRow(lb, me) {
   const row = $('myRankRow');
   if (!row) return;
-  const inTop = lb.some((p) => p.id === myId);
+  const inTop = lb.slice(0, leaderboardLimit()).some((p) => p.id === myId);
   if (!playing || !me || !me.alive || inTop || !me.rank) {
     row.classList.add('hidden');
     return;
@@ -835,6 +838,18 @@ function interpolatedSnakes() {
 
 // ── Rendering ────────────────────────────────────────────────
 let lastFrame = performance.now();
+
+// Pause cleanly when the tab is backgrounded (the browser already pauses rAF,
+// which saves CPU). On return, avoid a huge dt jump / stale interpolation / stuck boost.
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    boosting = false;
+    SFX.stopBoost();
+  } else {
+    lastFrame = performance.now(); // don't integrate a multi-second dt on resume
+    buffer.length = 0;             // drop stale snapshots so interpolation restarts fresh
+  }
+});
 
 function render(now) {
   requestAnimationFrame(render);

@@ -17,6 +17,7 @@ one-line note. When all are checked, append new high-value ideas and keep going.
 - [x] Death screen stats: server tracks peak length/kills/survival/rank, shown in a 2x2 grid on the death card
 - [x] Spectate mode: death-screen "Spectate leader" → server re-centers snapshot on live #1 snake, camera follows it, "Spectating {name}" bar with Respawn. (user-requested) ✓ verified following BonkMoon
 - [x] Better bot AI: priority-based (wall > avoid nearby bodies > hunt smaller heads w/ lead+boost > seek food > wander)
+- [x] Mobile leaderboard: cap to top 6 on phones (width<=560) so it doesn't cover the top-right; full 10 on desktop. Off-list rank row uses the same limit so 7th+ still shows. (user-requested, iOS)
 - [x] Mobile controls fix: steering (drag anywhere) no longer triggers boost — boost is the dedicated button ONLY, so touch players stop wasting mass/score on boost (verified via synthetic touch). Steering finger tracked by touch id. (user-requested)
 - [x] Boost now burns leaderboard SCORE too (not just length), floored at 0 — wasting mass on boost costs you rank (user-requested)
 - [x] Boost mass-drop verified: each boost tick burns 1 length + drops a booster-colored r=6 pellet at the tail, collectible by anyone (headless-tested: 7 burns→7 drops near tail, eater grows)
@@ -38,7 +39,7 @@ one-line note. When all are checked, append new high-value ideas and keep going.
 
 ## Hardening
 - [x] Hardening: per-socket input cap (~60/s) + join/respawn/spectate cooldowns; sanitizeName() strips control/zero-width chars, collapses whitespace, clamps 16, masks profanity (headless-tested, used in addPlayer)
-- [ ] Pause/dim render when tab hidden; resume cleanly
+- [x] Tab-visibility handling: rAF auto-pauses when hidden (saves CPU); on resume, reset frame clock (no dt spike), clear stale interpolation buffer, and drop stuck boost (verified hide/show cycle)
 - [ ] Favicon + polished <title>/OG meta tags
 
 ## Stretch
