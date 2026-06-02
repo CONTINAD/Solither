@@ -88,9 +88,29 @@ export class Game {
   }
 
   randomSpawnPoint() {
-    const a = rand(0, Math.PI * 2);
-    const r = Math.sqrt(Math.random()) * (WORLD.radius * 0.7);
-    return { x: Math.cos(a) * r, y: Math.sin(a) * r };
+    // Try several random spots; take the first that's clear of other snakes (≥700u),
+    // else the clearest found — so you never spawn on top of someone and instantly die.
+    let best = null, bestClear = -1;
+    for (let attempt = 0; attempt < 25; attempt++) {
+      const a = rand(0, Math.PI * 2);
+      const r = Math.sqrt(Math.random()) * (WORLD.radius * 0.85);
+      const x = Math.cos(a) * r, y = Math.sin(a) * r;
+      let nearest = Infinity;
+      for (const p of this.players.values()) {
+        if (!p.alive) continue;
+        const dh = Math.hypot(p.x - x, p.y - y);
+        if (dh < nearest) nearest = dh;
+        for (let i = 0; i < p.trail.length; i += 12) {
+          const s = p.trail[i];
+          const d = Math.hypot(s.x - x, s.y - y);
+          if (d < nearest) nearest = d;
+        }
+        if (nearest <= 700) break; // already too close — abandon this candidate
+      }
+      if (nearest > 700) return { x, y };
+      if (nearest > bestClear) { bestClear = nearest; best = { x, y }; }
+    }
+    return best || { x: 0, y: 0 };
   }
 
   addPlayer({ name, wallet, isBot = false, socketId = null, color = null }) {

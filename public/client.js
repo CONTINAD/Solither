@@ -361,6 +361,9 @@ function startPlaying() {
 // ── Socket events ────────────────────────────────────────────
 function wireSocket() {
   socket.on('state', (s) => {
+    // Always trust the server's world bounds (self-corrects any stale/cached radius —
+    // this is what kept making snakes render "outside" the boundary circle).
+    if (s.world && s.world.radius) world.radius = s.world.radius;
     // HUD
     if (s.round) updateRoundUI(s.round);
     leaderboardData = s.leaderboard || [];
