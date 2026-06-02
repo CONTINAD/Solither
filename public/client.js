@@ -148,6 +148,7 @@ const fx = [];          // boost particles { x, y, vx, vy, life, max, r, color }
 const pops = [];        // floating "+N" eat popups { x, y, vy, text, life, max, color }
 let headFlashUntil = 0; // ms timestamp until which the local head flashes white
 let prevLen = null;     // last server length, to detect eating
+let lastCoilWarn = 0;   // throttle the anti-coil warning toast
 const confetti = [];    // screen-space celebration particles
 let rwHideTimer = null;
 
@@ -398,6 +399,11 @@ function wireSocket() {
       prevLen = s.me.length;
       pred.length = s.me.length || pred.length;
       pred.serverX = s.me.x; pred.serverY = s.me.y;
+      // Anti-coil warning toast (throttled) while the server is draining for camping.
+      if (s.me.coiling) {
+        const now = performance.now();
+        if (now - lastCoilWarn > 2500) { showToast('🌀 Stop coiling — move or you lose mass!'); lastCoilWarn = now; }
+      }
       // Find my color from the snapshot.
       if (s.snakes) {
         const mine = s.snakes.find((sn) => sn.id === myId);

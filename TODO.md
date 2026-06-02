@@ -22,6 +22,9 @@ one-line note. When all are checked, append new high-value ideas and keep going.
 - [x] Boost now burns leaderboard SCORE too (not just length), floored at 0 — wasting mass on boost costs you rank (user-requested)
 - [x] Boost mass-drop verified: each boost tick burns 1 length + drops a booster-colored r=6 pellet at the tail, collectible by anyone (headless-tested: 7 burns→7 drops near tail, eater grows)
 
+## Anti-grief (user-requested)
+- [x] Anti-coil: if a snake's head stays within 230u of an anchor for >~5s (coiling in a ball / camping), it bleeds 1 length+score every 6 ticks until it moves out; floors at START_LENGTH (won't kill). Client shows a throttled "stop coiling" toast. Verified headlessly (coiler drains, floor holds, mover exempt).
+
 ## Rewards (user-requested)
 - [x] Reward split reworked: TOP 5 winners get fixed % of the pool — 1st 30% / 2nd 20% / 3rd 15% / 4th 10% / 5th 10% (=85% to players); creator keeps the remaining 15% (no normalization). REWARD_TOP_N=5. Tagline/leaderboard-note/banner all read "top 5" dynamically. Verified split headlessly (0.075/0.05/0.0375/0.025/0.025 of 0.25; creator 0.0375). NOTE: actual on-chain claim-a-few-seconds-before + distribute-to-holders is the payout bot's job (payoutHook).
 

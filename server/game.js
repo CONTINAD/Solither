@@ -27,6 +27,9 @@ const FOOD_TARGET = 600;         // number of food pellets kept in the world
 const BOT_TARGET = 8;            // bots kept alive to fill the arena
 const BOOST_COST_TICKS = 6;      // lose 1 length every this many ticks while boosting
 const MIN_BOOST_LENGTH = 12;     // can't boost below this length
+const COIL_RADIUS = 230;         // if your head stays within this radius of an anchor…
+const COIL_GRACE_TICKS = 150;    // …for this long (~5s @30Hz) you're "coiling/camping"
+const COIL_DRAIN_EVERY = 6;      // then lose 1 length/score every this many ticks until you move out
 
 let nextId = 1;
 // Snake skin palette — also exposed to the client via /api/config so the
@@ -117,6 +120,10 @@ export class Game {
       kills: 0,
       peakLength: START_LENGTH,
       spawnAt: Date.now(),
+      // anti-coil: penalize staying in a tiny area (coiling/camping) too long
+      coilAnchor: { x, y },
+      coilTicks: 0,
+      coiling: false,
       // bot ai memory
       _wander: angle,
     };
@@ -161,7 +168,38 @@ export class Game {
     }
 
     this.handleFood();
+    this.handleCoiling();
     this.handleCollisions();
+  }
+
+  // Anti-coil: if a snake's head loiters within COIL_RADIUS of an anchor past the
+  // grace period (coiling in a tight ball / camping), bleed its length + score until
+  // it moves out. Floors at START_LENGTH so it shrinks the camp advantage without killing.
+  handleCoiling() {
+    const r2 = COIL_RADIUS * COIL_RADIUS;
+    for (const p of this.players.values()) {
+      if (!p.alive) continue;
+      if (dist2(p.x, p.y, p.coilAnchor.x, p.coilAnchor.y) > r2) {
+        // Made real progress — reset the anchor and timer.
+        p.coilAnchor.x = p.x;
+        p.coilAnchor.y = p.y;
+        p.coilTicks = 0;
+        p.coiling = false;
+      } else {
+        p.coilTicks++;
+        p.coiling = p.coilTicks > COIL_GRACE_TICKS;
+        if (p.coiling && p.length > START_LENGTH && this.tick % COIL_DRAIN_EVERY === 0) {
+          p.length -= 1;
+          p.score = Math.max(0, p.score - 1);
+          const tail = p.trail[p.trail.length - 1];
+          if (tail) {
+            const drop = this.spawnFood(tail.x, tail.y, 1, p.color);
+            drop.r = 6;
+            this.food.push(drop);
+          }
+        }
+      }
+    }
   }
 
   movePlayer(p) {
