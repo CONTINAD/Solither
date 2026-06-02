@@ -239,24 +239,45 @@ export class Game {
   }
 
   handleCollisions() {
+    // Spatial hash grid broad-phase: bucket every snake's body points, then test
+    // each head only against points in its own + adjacent cells. Turns the old
+    // O(snakes × all-segments) sweep into ~O(total-segments) so it scales to many players.
+    // CELL must exceed the max collision distance (headR + bodyR ≈ 58) so a 3×3 query is complete.
+    const CELL = 120;
     const alive = [...this.players.values()].filter((p) => p.alive);
+
+    const grid = new Map(); // "cx,cy" -> [{ x, y, owner, r }]
+    for (const o of alive) {
+      const oR = this.bodyRadius(o);
+      const samples = o.trail;
+      for (let i = 6; i < samples.length; i += SEGMENT_EVERY) {
+        const s = samples[i];
+        const k = Math.floor(s.x / CELL) + ',' + Math.floor(s.y / CELL);
+        let arr = grid.get(k);
+        if (!arr) grid.set(k, (arr = []));
+        arr.push({ x: s.x, y: s.y, owner: o.id, r: oR });
+      }
+    }
+
     for (const p of alive) {
       const headR = this.bodyRadius(p);
-      for (const o of alive) {
-        if (o.id === p.id) continue;
-        const oR = this.bodyRadius(o);
-        const hitDist = headR + oR;
-        const hit2 = hitDist * hitDist;
-        // Skip the first few segments of the other snake (its own head area).
-        const samples = o.trail;
-        for (let i = 6; i < samples.length; i += SEGMENT_EVERY) {
-          const s = samples[i];
-          if (dist2(p.x, p.y, s.x, s.y) <= hit2) {
-            this.kill(p, 'collision', o);
-            break;
+      const cx = Math.floor(p.x / CELL);
+      const cy = Math.floor(p.y / CELL);
+      let dead = false;
+      for (let gx = cx - 1; gx <= cx + 1 && !dead; gx++) {
+        for (let gy = cy - 1; gy <= cy + 1 && !dead; gy++) {
+          const arr = grid.get(gx + ',' + gy);
+          if (!arr) continue;
+          for (const s of arr) {
+            if (s.owner === p.id) continue; // no self-collision
+            const hitDist = headR + s.r;
+            if (dist2(p.x, p.y, s.x, s.y) <= hitDist * hitDist) {
+              this.kill(p, 'collision', this.players.get(s.owner));
+              dead = true;
+              break;
+            }
           }
         }
-        if (!p.alive) break;
       }
     }
   }

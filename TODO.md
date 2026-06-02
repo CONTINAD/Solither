@@ -46,5 +46,5 @@ one-line note. When all are checked, append new high-value ideas and keep going.
 - [x] Favicon (branded snake-S SVG) + polished <title> + full OG/Twitter/theme-color meta tags + 1200x630 og.svg (verified served + decoded; PNG OG flagged as follow-up for crawlers that reject SVG)
 
 ## Stretch
-- [ ] Spatial hash grid for collision broad-phase (scale to many players)
+- [x] Spatial hash grid collision broad-phase (CELL=120, 3×3 query): O(snakes×segments) → ~O(total-segments) for many-player scaling. Headless-tested (head-on-body kills+credits, no self-collision, far-apart safe); runs clean in-game.
 - [ ] Settings panel: toggle sound, minimap, particles
