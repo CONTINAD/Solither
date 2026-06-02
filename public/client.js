@@ -9,7 +9,7 @@ const $ = (id) => document.getElementById(id);
 // ── Sound (Web Audio, all synthesized — no asset files) ──────
 const SFX = (() => {
   let ctx = null, master = null, muted = localStorage.getItem('solither_muted') === '1';
-  let boostOsc = null, boostGain = null, lastEat = 0;
+  let boostOsc = null, boostGain = null, boostLfo = null, lastEat = 0;
 
   function ensure() {
     if (!ctx) {
@@ -38,10 +38,11 @@ const SFX = (() => {
   function stopBoost() {
     if (boostOsc) {
       try {
-        boostGain.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + 0.08);
-        boostOsc.stop(ctx.currentTime + 0.1);
+        boostGain.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + 0.12);
+        boostOsc.stop(ctx.currentTime + 0.14);
+        if (boostLfo) boostLfo.stop(ctx.currentTime + 0.14);
       } catch (e) { /* already stopped */ }
-      boostOsc = null; boostGain = null;
+      boostOsc = null; boostGain = null; boostLfo = null;
     }
   }
 
@@ -69,14 +70,39 @@ const SFX = (() => {
     },
     startBoost() {
       if (!ctx || muted || boostOsc) return;
-      boostOsc = ctx.createOscillator();
+      const t = ctx.currentTime;
+      // Airy "woosh": looping white noise through a bandpass, with the band sweeping
+      // up on start (the whoosh onset) and a slow wobble for a wind-like body.
+      const buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 2), ctx.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+      boostOsc = ctx.createBufferSource(); // (kept in boostOsc so stopBoost() stops it)
+      boostOsc.buffer = buf;
+      boostOsc.loop = true;
+
+      const bp = ctx.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.Q.value = 0.7;
+      bp.frequency.setValueAtTime(320, t);
+      bp.frequency.linearRampToValueAtTime(820, t + 0.22); // sweep up = the "whoosh"
+      const lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.value = 1900;
+
+      // Slow wind wobble on the band center.
+      boostLfo = ctx.createOscillator();
+      boostLfo.frequency.value = 0.8;
+      const lfoGain = ctx.createGain();
+      lfoGain.gain.value = 170;
+      boostLfo.connect(lfoGain); lfoGain.connect(bp.frequency);
+
       boostGain = ctx.createGain();
-      boostOsc.type = 'sawtooth';
-      boostOsc.frequency.value = 95;
-      boostGain.gain.setValueAtTime(0.0001, ctx.currentTime);
-      boostGain.gain.linearRampToValueAtTime(0.07, ctx.currentTime + 0.1);
-      boostOsc.connect(boostGain); boostGain.connect(master);
+      boostGain.gain.setValueAtTime(0.0001, t);
+      boostGain.gain.linearRampToValueAtTime(0.16, t + 0.14);
+
+      boostOsc.connect(bp); bp.connect(lp); lp.connect(boostGain); boostGain.connect(master);
       boostOsc.start();
+      boostLfo.start();
     },
     stopBoost,
   };
