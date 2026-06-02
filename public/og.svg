@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <linearGradient id="title" x1="380" y1="0" x2="820" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#14F195"/>
+      <stop offset="1" stop-color="#9945FF"/>
+    </linearGradient>
+    <radialGradient id="glowP" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse"
+      gradientTransform="translate(300 160) scale(520)">
+      <stop offset="0" stop-color="#9945FF" stop-opacity="0.38"/>
+      <stop offset="1" stop-color="#9945FF" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowG" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse"
+      gradientTransform="translate(940 500) scale(540)">
+      <stop offset="0" stop-color="#14F195" stop-opacity="0.30"/>
+      <stop offset="1" stop-color="#14F195" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="630" fill="#07060d"/>
+  <rect width="1200" height="630" fill="url(#glowP)"/>
+  <rect width="1200" height="630" fill="url(#glowG)"/>
+  <!-- snake body -->
+  <path d="M120 470 C 320 470, 320 380, 480 380 C 640 380, 640 470, 820 470 C 980 470, 1010 410, 1080 410"
+        fill="none" stroke="#14F195" stroke-width="30" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
+  <circle cx="1080" cy="410" r="20" fill="#14F195"/>
+  <circle cx="1086" cy="404" r="5" fill="#06110b"/>
+  <text x="600" y="300" text-anchor="middle" font-family="'Space Grotesk', Arial, sans-serif" font-weight="800" font-size="150" fill="url(#title)">SOLITHER</text>
+  <text x="600" y="362" text-anchor="middle" font-family="'Space Grotesk', Arial, sans-serif" font-weight="600" font-size="38" fill="#ffffff" opacity="0.85">Sol + Slither · top 3 split creator rewards every 3 min</text>
+</svg>

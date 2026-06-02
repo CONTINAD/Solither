@@ -40,7 +40,7 @@ one-line note. When all are checked, append new high-value ideas and keep going.
 ## Hardening
 - [x] Hardening: per-socket input cap (~60/s) + join/respawn/spectate cooldowns; sanitizeName() strips control/zero-width chars, collapses whitespace, clamps 16, masks profanity (headless-tested, used in addPlayer)
 - [x] Tab-visibility handling: rAF auto-pauses when hidden (saves CPU); on resume, reset frame clock (no dt spike), clear stale interpolation buffer, and drop stuck boost (verified hide/show cycle)
-- [ ] Favicon + polished <title>/OG meta tags
+- [x] Favicon (branded snake-S SVG) + polished <title> + full OG/Twitter/theme-color meta tags + 1200x630 og.svg (verified served + decoded; PNG OG flagged as follow-up for crawlers that reject SVG)
 
 ## Stretch
 - [ ] Spatial hash grid for collision broad-phase (scale to many players)
