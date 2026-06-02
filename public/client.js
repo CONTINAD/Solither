@@ -61,6 +61,7 @@ const SFX = (() => {
       blip(520 + Math.random() * 90, 0.08, 'triangle', 0.16, 900);
     },
     death() { ensure(); blip(340, 0.5, 'sawtooth', 0.3, 70); },
+    tick() { ensure(); blip(1040, 0.06, 'square', 0.12); },
     roundWin() {
       ensure();
       [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => blip(f, 0.2, 'square', 0.2), i * 110));
@@ -535,12 +536,20 @@ $('quitBtn').addEventListener('click', () => {
 });
 
 // ── Round / leaderboard UI ───────────────────────────────────
+let lastTickSec = -1;
 function updateRoundUI(round) {
   if (!round) return;
   const sec = Math.ceil(round.msRemaining / 1000);
   const m = Math.floor(sec / 60), s = sec % 60;
   $('roundTimer').textContent = `${m}:${String(s).padStart(2, '0')}`;
   $('roundPill').classList.toggle('urgent', sec <= 15);
+
+  // Urgency cue (in-game only): edge pulse in the last 10s, tick the last 5s.
+  const inGame = !$('hud').classList.contains('hidden');
+  const vig = $('urgentVignette');
+  if (vig) vig.classList.toggle('hidden', !(inGame && sec <= 10 && sec > 0));
+  if (inGame && sec <= 5 && sec >= 1 && sec !== lastTickSec) SFX.tick();
+  lastTickSec = sec;
 }
 
 // Show fewer rows on phones so the board doesn't cover the top-right of the screen.
@@ -978,6 +987,12 @@ function render(now) {
   drawConfetti(); // screen-space, above the world
   if (settings.minimap) drawMinimap(remotes);
   updateBoostHud();
+
+  // Pulse the urgency vignette from here (avoids an infinite CSS animation).
+  const vig = $('urgentVignette');
+  if (vig && !vig.classList.contains('hidden')) {
+    vig.style.opacity = (0.4 + 0.45 * (0.5 + 0.5 * Math.sin(now / 320))).toFixed(3);
+  }
 }
 
 // ── Parallax starfield + nebula background ───────────────────

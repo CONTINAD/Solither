@@ -51,5 +51,5 @@ one-line note. When all are checked, append new high-value ideas and keep going.
 
 ## Round 2 ideas (backlog cleared — fresh high-value items)
 - [x] Max-player cap (MAX_PLAYERS, default 50): join rejected over capacity with "Arena is full (N players)" (verified reject at 0 + normal join at 50)
-- [ ] Round-end urgency cue: last-10s screen-edge pulse + countdown tick sound (tension around the reward moment)
+- [x] Round-end urgency cue: red edge vignette in last 10s (rAF opacity pulse — not a CSS anim, so it never blocks screenshots) + countdown tick sound in last 5s. Verified toggle ≤10s / off >10s, no errors.
 - [ ] Spectate upgrade: tap/click to cycle through the top players instead of only watching #1

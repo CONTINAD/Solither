@@ -189,6 +189,16 @@ canvas#game {
 /* ── HUD ────────────────────────────────────────────────── */
 #hud { position: fixed; inset: 0; pointer-events: none; z-index: 20; }
 
+#urgentVignette {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 22;
+  /* Static shadow; opacity is pulsed from the rAF loop (no infinite CSS animation). */
+  box-shadow: inset 0 0 130px 24px rgba(255, 77, 109, 0.5);
+  will-change: opacity;
+}
+
 #topbar {
   position: absolute;
   top: 14px;
