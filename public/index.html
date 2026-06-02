@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Solither — Sol + Slither</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <!-- ── Game canvas ─────────────────────────────────────── -->
+  <canvas id="game"></canvas>
+
+  <!-- ── In-game HUD ─────────────────────────────────────── -->
+  <div id="hud" class="hidden">
+    <div id="topbar">
+      <div class="pill" id="roundPill">
+        <span class="label">Reward round</span>
+        <span class="value" id="roundTimer">5:00</span>
+      </div>
+      <div class="pill" id="scorePill">
+        <span class="label">Length</span>
+        <span class="value" id="scoreVal">0</span>
+      </div>
+      <div class="pill" id="playersPill">
+        <span class="label">Online</span>
+        <span class="value" id="playersVal">0</span>
+      </div>
+    </div>
+
+    <div id="leaderboard">
+      <div class="lb-title">🏆 Leaderboard</div>
+      <ol id="lbList"></ol>
+      <div class="lb-note">Top <span id="topNNote">3</span> at round end split creator rewards</div>
+    </div>
+
+    <div id="killFeed"></div>
+
+    <div id="minimapWrap"><canvas id="minimap" width="160" height="160"></canvas></div>
+
+    <button id="boostBtn">BOOST</button>
+
+    <div id="toast"></div>
+  </div>
+
+  <!-- ── Join / lobby screen ─────────────────────────────── -->
+  <div id="lobby">
+    <div class="lobby-card">
+      <h1 class="logo">SOL<span>ITHER</span></h1>
+      <p class="tagline">Sol + Slither · grow the longest snake · top 3 split creator rewards every <b id="roundMins">5</b> min</p>
+
+      <div id="gateNote" class="gate"></div>
+
+      <label class="field">
+        <span>Your name</span>
+        <input id="nameInput" maxlength="16" placeholder="degen420" autocomplete="off" />
+      </label>
+
+      <label class="field">
+        <span>Solana wallet</span>
+        <input id="walletInput" placeholder="Paste wallet address…" autocomplete="off" spellcheck="false" />
+      </label>
+
+      <button id="playBtn">PLAY</button>
+      <div id="joinError" class="error"></div>
+
+      <div class="how">
+        <div><b>Move</b> — mouse / touch</div>
+        <div><b>Boost</b> — hold click / space</div>
+        <div><b>Goal</b> — eat orbs, cut off rivals, survive</div>
+      </div>
+
+      <div id="winnersBox" class="winners hidden">
+        <div class="winners-title">Last round winners</div>
+        <ol id="winnersList"></ol>
+      </div>
+    </div>
+    <div class="footer">Not financial advice. Play responsibly.</div>
+  </div>
+
+  <!-- ── Death overlay ───────────────────────────────────── -->
+  <div id="deathScreen" class="hidden">
+    <div class="death-card">
+      <h2>You died</h2>
+      <p id="deathReason"></p>
+      <div class="death-stats">
+        <div class="stat"><span class="s-val" id="dsPeak">0</span><span class="s-lbl">Peak length</span></div>
+        <div class="stat"><span class="s-val" id="dsRank">—</span><span class="s-lbl">Final rank</span></div>
+        <div class="stat"><span class="s-val" id="dsKills">0</span><span class="s-lbl">Kills</span></div>
+        <div class="stat"><span class="s-val" id="dsTime">0:00</span><span class="s-lbl">Survived</span></div>
+      </div>
+      <button id="respawnBtn">Respawn</button>
+      <button id="spectateBtn" class="ghost">Spectate leader</button>
+      <button id="quitBtn" class="ghost">Back to lobby</button>
+    </div>
+  </div>
+
+  <!-- ── Spectate bar ────────────────────────────────────── -->
+  <div id="spectateBar" class="hidden">
+    <span class="spec-eye">👁</span>
+    <span>Spectating <b id="specName">leader</b></span>
+    <button id="specRespawnBtn">Respawn</button>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="client.js"></script>
+</body>
+</html>
