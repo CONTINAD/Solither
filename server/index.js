@@ -20,7 +20,13 @@ const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
 
 app.use(express.json());
-app.use(express.static(PUBLIC_DIR));
+// no-cache + revalidate so deploys reach players without a manual hard-refresh
+// (ETag/Last-Modified still give cheap 304s; only changed files re-download).
+app.use(express.static(PUBLIC_DIR, {
+  etag: true,
+  lastModified: true,
+  setHeaders: (res) => res.setHeader('Cache-Control', 'no-cache'),
+}));
 
 // Expose public config so the client can show gating rules.
 app.get('/api/config', (req, res) => {
