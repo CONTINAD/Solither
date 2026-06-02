@@ -51,6 +51,11 @@ one-line note. When all are checked, append new high-value ideas and keep going.
 - [x] Tab-visibility handling: rAF auto-pauses when hidden (saves CPU); on resume, reset frame clock (no dt spike), clear stale interpolation buffer, and drop stuck boost (verified hide/show cycle)
 - [x] Favicon (branded snake-S SVG) + polished <title> + full OG/Twitter/theme-color meta tags + 1200x630 og.svg (verified served + decoded; PNG OG flagged as follow-up for crawlers that reject SVG)
 
+## Round 3 ideas
+- [x] Round-win overlay podium now shows each champion's SOL reward (0.075/0.05/… SOL) instead of score — ties the payout into the celebration. Verified all 5 rows render SOL.
+- [ ] Multi-kill streak juice: kill 2+ snakes quickly → "DOUBLE KILL!" banner + sound
+- [ ] AFK kick: disconnect players who send no input for ~60s (frees slots toward the cap)
+
 ## Stretch
 - [x] Spatial hash grid collision broad-phase (CELL=120, 3×3 query): O(snakes×segments) → ~O(total-segments) for many-player scaling. Headless-tested (head-on-body kills+credits, no self-collision, far-apart safe); runs clean in-game.
 - [x] Settings panel (⚙ in HUD): toggle Sound / Minimap / Particles, persisted to localStorage. Minimap toggle hides wrapper + skips draw; particles toggle gates boost fx/eat pops/confetti. (verified toggles + persistence)

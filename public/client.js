@@ -597,10 +597,11 @@ function showRoundWin(record) {
   record.winners.forEach((w, i) => {
     const li = document.createElement('li');
     if (i === 0) li.classList.add('rank1');
+    const reward = w.sol != null ? `${fmtSol(w.sol)} SOL` : `${w.score}`;
     li.innerHTML =
       `<span class="medal">${MEDALS[i] || '🏅'}</span>` +
       `<span class="rw-name">${escapeHtml(w.name)}</span>` +
-      `<span class="rw-score">${w.score}</span>`;
+      `<span class="rw-score">${reward}</span>`;
     podium.appendChild(li);
   });
   $('roundWinOverlay').classList.remove('hidden');
