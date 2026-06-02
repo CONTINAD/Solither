@@ -16,17 +16,17 @@ one-line note. When all are checked, append new high-value ideas and keep going.
 - [x] Kill feed (top-left): server broadcasts 'kill' events; client shows "You ate {x}"/"{a} ate {b}", fades after 4s
 - [x] Death screen stats: server tracks peak length/kills/survival/rank, shown in a 2x2 grid on the death card
 - [x] Spectate mode: death-screen "Spectate leader" → server re-centers snapshot on live #1 snake, camera follows it, "Spectating {name}" bar with Respawn. (user-requested) ✓ verified following BonkMoon
-- [ ] Better bot AI: steer away from nearby snake bodies, chase smaller heads
-- [ ] Boost mass-drop is visible & collectible (verify pellets spawn behind booster)
+- [x] Better bot AI: priority-based (wall > avoid nearby bodies > hunt smaller heads w/ lead+boost > seek food > wander)
+- [x] Boost mass-drop verified: each boost tick burns 1 length + drops a booster-colored r=6 pellet at the tail, collectible by anyone (headless-tested: 7 burns→7 drops near tail, eater grows)
 
 ## Audio
-- [ ] Web Audio SFX: eat, boost loop, death, round-win. Mute toggle in HUD + remember in localStorage
+- [x] Web Audio SFX: synthesized eat/boost-hum/death/round-win, HUD mute button (🔊/🔇) persisted to localStorage; audio inits on first play gesture
 
 ## UI / juice
-- [ ] Round-win overlay: winner banner + confetti burst for the top 3
-- [ ] Animated starfield / nebula parallax background
-- [ ] Connection status dot (green/red) + auto-reconnect + "reconnecting" toast
-- [ ] Skin picker in lobby (choose snake color, remembered in localStorage)
+- [x] Round-win overlay: non-blocking "Round N Champions" podium (🥇🥈🥉) + 150-particle confetti burst, auto-hides after 5.5s
+- [x] Animated starfield/nebula: 2 parallax star layers (twinkle) + 3 drifting nebula gradient blobs behind the world
+- [x] Connection status dot (green/red w/ pulse) in HUD + "reconnecting" toast + socket.io auto-reconnect that re-joins with stored name/wallet on 'connect'
+- [x] Skin picker in lobby: 10 swatches from server palette, saved to localStorage, sent on join; server validates color against SKINS (verified orange snake)
 - [ ] Show your shortened wallet + length in HUD
 - [ ] Off-screen leaderboard arrow pointing to your rank when not in top 10
 

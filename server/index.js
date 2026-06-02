@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url';
 
 import { config, DEMO_MODE } from './config.js';
 import { verifyWallet } from './solana.js';
-import { Game, SIM } from './game.js';
+import { Game, SIM, SKINS } from './game.js';
 import { RoundManager } from './rewards.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -28,6 +28,7 @@ app.get('/api/config', (req, res) => {
     roundSeconds: config.roundSeconds,
     rewardTopN: config.rewardTopN,
     sim: SIM,
+    skins: SKINS,
   });
 });
 
@@ -77,7 +78,7 @@ game.onDeath = (player, cause, killer) => {
 io.on('connection', (socket) => {
   let playerId = null;
 
-  socket.on('join', async ({ wallet, name }, ack) => {
+  socket.on('join', async ({ wallet, name, color }, ack) => {
     const result = await verifyWallet(wallet);
     if (!result.ok) {
       ack?.({ ok: false, reason: result.reason });
@@ -87,6 +88,7 @@ io.on('connection', (socket) => {
       name: name,
       wallet: (wallet || '').trim() || null,
       socketId: socket.id,
+      color,
     });
     playerId = player.id;
     socketByPlayerId.set(playerId, socket);

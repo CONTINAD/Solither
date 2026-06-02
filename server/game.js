@@ -29,10 +29,13 @@ const BOOST_COST_TICKS = 6;      // lose 1 length every this many ticks while bo
 const MIN_BOOST_LENGTH = 12;     // can't boost below this length
 
 let nextId = 1;
-const colors = [
+// Snake skin palette — also exposed to the client via /api/config so the
+// lobby picker offers exactly these (and the server can validate requests).
+export const SKINS = [
   '#14F195', '#9945FF', '#00D1FF', '#FF4D6D', '#FFD166',
   '#06FFA5', '#F72585', '#4CC9F0', '#FB8500', '#B5179E',
 ];
+const colors = SKINS;
 
 function rand(min, max) { return min + Math.random() * (max - min); }
 function dist2(ax, ay, bx, by) { const dx = ax - bx, dy = ay - by; return dx * dx + dy * dy; }
@@ -73,7 +76,7 @@ export class Game {
     return { x: Math.cos(a) * r, y: Math.sin(a) * r };
   }
 
-  addPlayer({ name, wallet, isBot = false, socketId = null }) {
+  addPlayer({ name, wallet, isBot = false, socketId = null, color = null }) {
     const id = nextId++;
     const { x, y } = this.randomSpawnPoint();
     const angle = rand(0, Math.PI * 2);
@@ -94,7 +97,8 @@ export class Game {
       score: 0,
       boosting: false,
       alive: true,
-      color: colors[id % colors.length],
+      // Honor a client-requested skin, but only if it's a known palette color.
+      color: (color && colors.includes(color)) ? color : colors[id % colors.length],
       radius: 12,
       // stats
       kills: 0,
@@ -160,9 +164,13 @@ export class Game {
       speed = BOOST_SPEED;
       if (this.tick % BOOST_COST_TICKS === 0) {
         p.length -= 1;
-        // Drop a pellet behind as you burn length.
+        // Drop a glowing pellet behind you as you burn length — collectible by anyone.
         const tail = p.trail[p.trail.length - 1];
-        if (tail) this.food.push(this.spawnFood(tail.x, tail.y, 1, p.color));
+        if (tail) {
+          const drop = this.spawnFood(tail.x, tail.y, 1, p.color);
+          drop.r = 6; // a touch larger so the boost trail reads clearly
+          this.food.push(drop);
+        }
       }
     } else {
       p.boosting = false;
@@ -272,23 +280,64 @@ export class Game {
   }
 
   botThink(p) {
-    // Wander with gentle steering, avoid the wall, chase nearby food, flee bigger snakes.
-    const distFromCenter = Math.hypot(p.x, p.y);
+    // Priority: wall > avoid nearby bodies > hunt smaller heads > seek food > wander.
+    const headR = this.bodyRadius(p);
 
-    // Steer back toward center if near the edge.
-    if (distFromCenter > WORLD.radius * 0.82) {
-      p.targetAngle = Math.atan2(-p.y, -p.x) + rand(-0.3, 0.3);
+    // 1. Wall avoidance — turn back toward center near the edge.
+    if (Math.hypot(p.x, p.y) > WORLD.radius * 0.8) {
+      p.targetAngle = Math.atan2(-p.y, -p.x) + rand(-0.2, 0.2);
+      p._wander = p.targetAngle;
+      p.boosting = false;
       return;
     }
 
-    // Occasionally pick a new wander direction.
-    if (this.tick % 18 === 0 || Math.random() < 0.02) {
-      p._wander += rand(-0.6, 0.6);
-    }
-    p.targetAngle = p._wander;
+    // 2. Scan others for danger (nearby bodies) and prey (smaller, closeby heads).
+    let avoidX = 0, avoidY = 0, danger = false;
+    const dangerR = 130 + headR;
+    const dangerR2 = dangerR * dangerR;
+    let prey = null, preyD2 = 440 * 440;
 
-    // Look for the nearest food in a cone and drift toward it.
-    let best = null, bestD = 350 * 350;
+    for (const o of this.players.values()) {
+      if (!o.alive || o.id === p.id) continue;
+      // Repulsion from nearby body segments (sampled sparsely for speed).
+      const samples = o.trail;
+      for (let i = 0; i < samples.length; i += 10) {
+        const s = samples[i];
+        const d2 = dist2(p.x, p.y, s.x, s.y);
+        if (d2 < dangerR2) {
+          const d = Math.sqrt(d2) || 1;
+          const w = (dangerR - d) / dangerR;
+          avoidX += ((p.x - s.x) / d) * w;
+          avoidY += ((p.y - s.y) / d) * w;
+          danger = true;
+        }
+      }
+      // Prey = a notably smaller snake's head within range.
+      const hd2 = dist2(p.x, p.y, o.x, o.y);
+      if (o.length < p.length * 0.85 && hd2 < preyD2) { preyD2 = hd2; prey = o; }
+    }
+
+    // 2a. Flee danger first.
+    if (danger && (avoidX !== 0 || avoidY !== 0)) {
+      p.targetAngle = Math.atan2(avoidY, avoidX);
+      p._wander = p.targetAngle;
+      p.boosting = false;
+      return;
+    }
+
+    // 3. Hunt: aim slightly ahead of the prey's head to cut it off.
+    if (prey) {
+      const lead = 45;
+      const tx = prey.x + Math.cos(prey.angle) * lead;
+      const ty = prey.y + Math.sin(prey.angle) * lead;
+      p.targetAngle = Math.atan2(ty - p.y, tx - p.x);
+      p._wander = p.targetAngle;
+      p.boosting = preyD2 < 280 * 280 && p.length > 35; // burst to close in
+      return;
+    }
+
+    // 4. Seek the nearest food.
+    let best = null, bestD = 360 * 360;
     for (const f of this.food) {
       const d = dist2(p.x, p.y, f.x, f.y);
       if (d < bestD) { bestD = d; best = f; }
@@ -296,8 +345,13 @@ export class Game {
     if (best) {
       p.targetAngle = Math.atan2(best.y - p.y, best.x - p.x);
       p._wander = p.targetAngle;
+      p.boosting = false;
+      return;
     }
 
+    // 5. Wander.
+    if (this.tick % 20 === 0 || Math.random() < 0.02) p._wander += rand(-0.5, 0.5);
+    p.targetAngle = p._wander;
     p.boosting = false;
   }
 

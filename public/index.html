@@ -15,6 +15,7 @@
   <!-- ── In-game HUD ─────────────────────────────────────── -->
   <div id="hud" class="hidden">
     <div id="topbar">
+      <button id="muteBtn" class="pill icon-pill" title="Toggle sound">🔊</button>
       <div class="pill" id="roundPill">
         <span class="label">Reward round</span>
         <span class="value" id="roundTimer">5:00</span>
@@ -24,7 +25,7 @@
         <span class="value" id="scoreVal">0</span>
       </div>
       <div class="pill" id="playersPill">
-        <span class="label">Online</span>
+        <span class="label"><span id="connDot" class="conn-dot"></span>Online</span>
         <span class="value" id="playersVal">0</span>
       </div>
     </div>
@@ -40,6 +41,13 @@
     <div id="minimapWrap"><canvas id="minimap" width="160" height="160"></canvas></div>
 
     <button id="boostBtn">BOOST</button>
+
+    <div id="playerBadge" class="hidden">
+      <span id="pbDot" class="pb-dot"></span>
+      <span id="pbName"></span>
+      <span id="pbWallet"></span>
+      <span id="pbLen"></span>
+    </div>
 
     <div id="toast"></div>
   </div>
@@ -60,6 +68,11 @@
       <label class="field">
         <span>Solana wallet</span>
         <input id="walletInput" placeholder="Paste wallet address…" autocomplete="off" spellcheck="false" />
+      </label>
+
+      <label class="field">
+        <span>Snake skin</span>
+        <div id="skinPicker" class="skins"></div>
       </label>
 
       <button id="playBtn">PLAY</button>
@@ -93,6 +106,15 @@
       <button id="respawnBtn">Respawn</button>
       <button id="spectateBtn" class="ghost">Spectate leader</button>
       <button id="quitBtn" class="ghost">Back to lobby</button>
+    </div>
+  </div>
+
+  <!-- ── Round-win celebration ───────────────────────────── -->
+  <div id="roundWinOverlay" class="hidden">
+    <div class="rw-card">
+      <div class="rw-title">🏆 Round <span id="rwNum"></span> Champions</div>
+      <ol id="rwPodium"></ol>
+      <div class="rw-sub">Creator rewards → top <span id="rwTopN"></span></div>
     </div>
   </div>
 

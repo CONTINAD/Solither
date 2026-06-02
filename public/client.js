@@ -6,6 +6,80 @@
 
 const $ = (id) => document.getElementById(id);
 
+// ── Sound (Web Audio, all synthesized — no asset files) ──────
+const SFX = (() => {
+  let ctx = null, master = null, muted = localStorage.getItem('solither_muted') === '1';
+  let boostOsc = null, boostGain = null, lastEat = 0;
+
+  function ensure() {
+    if (!ctx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      ctx = new AC();
+      master = ctx.createGain();
+      master.gain.value = muted ? 0 : 0.5;
+      master.connect(ctx.destination);
+    }
+    if (ctx.state === 'suspended') ctx.resume();
+  }
+
+  function blip(freq, dur, type, vol, slideTo) {
+    if (!ctx || muted) return;
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(freq, ctx.currentTime);
+    if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, ctx.currentTime + dur);
+    g.gain.setValueAtTime(vol, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0008, ctx.currentTime + dur);
+    o.connect(g); g.connect(master);
+    o.start(); o.stop(ctx.currentTime + dur);
+  }
+
+  function stopBoost() {
+    if (boostOsc) {
+      try {
+        boostGain.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + 0.08);
+        boostOsc.stop(ctx.currentTime + 0.1);
+      } catch (e) { /* already stopped */ }
+      boostOsc = null; boostGain = null;
+    }
+  }
+
+  return {
+    init: ensure,
+    isMuted: () => muted,
+    setMuted(m) {
+      muted = m;
+      localStorage.setItem('solither_muted', m ? '1' : '0');
+      if (master) master.gain.value = m ? 0 : 0.5;
+      if (m) stopBoost();
+    },
+    eat() {
+      const now = performance.now();
+      if (now - lastEat < 55) return; // throttle rapid eats
+      lastEat = now;
+      blip(520 + Math.random() * 90, 0.08, 'triangle', 0.16, 900);
+    },
+    death() { ensure(); blip(340, 0.5, 'sawtooth', 0.3, 70); },
+    roundWin() {
+      ensure();
+      [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => blip(f, 0.2, 'square', 0.2), i * 110));
+    },
+    startBoost() {
+      if (!ctx || muted || boostOsc) return;
+      boostOsc = ctx.createOscillator();
+      boostGain = ctx.createGain();
+      boostOsc.type = 'sawtooth';
+      boostOsc.frequency.value = 95;
+      boostGain.gain.setValueAtTime(0.0001, ctx.currentTime);
+      boostGain.gain.linearRampToValueAtTime(0.07, ctx.currentTime + 0.1);
+      boostOsc.connect(boostGain); boostGain.connect(master);
+      boostOsc.start();
+    },
+    stopBoost,
+  };
+})();
+
 const canvas = $('game');
 const ctx = canvas.getContext('2d');
 const mini = $('minimap');
@@ -34,6 +108,10 @@ let world = { radius: 2600 };
 let socket = null;
 let myId = null;
 let playing = false;
+let lastJoin = null;        // { name, wallet } — for auto re-join on reconnect
+let hasJoinedOnce = false;
+let reconnectResume = false; // were we in-world when the connection dropped?
+let selectedSkin = localStorage.getItem('solither_skin') || null;
 
 const NET_HZ = 22;
 const INTERP_DELAY = 95; // ms behind realtime for smooth remote motion
@@ -58,10 +136,13 @@ const pred = {
 let mouse = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
 let boosting = false;
 let isBoosting = false; // boosting AND allowed (enough mass) — drives visuals
+let wasBoosting = false; // previous frame's boost state, for sound transitions
 const fx = [];          // boost particles { x, y, vx, vy, life, max, r, color }
 const pops = [];        // floating "+N" eat popups { x, y, vy, text, life, max, color }
 let headFlashUntil = 0; // ms timestamp until which the local head flashes white
 let prevLen = null;     // last server length, to detect eating
+const confetti = [];    // screen-space celebration particles
+let rwHideTimer = null;
 
 const cam = { x: 0, y: 0, init: false };
 
@@ -76,6 +157,7 @@ fetch('/api/config').then((r) => r.json()).then((cfg) => {
   world.radius = SIM.worldRadius;
   $('roundMins').textContent = Math.round(cfg.roundSeconds / 60);
   $('topNNote').textContent = cfg.rewardTopN;
+  buildSkinPicker(cfg.skins || []);
   const gate = $('gateNote');
   if (cfg.demoMode) {
     gate.classList.add('demo');
@@ -90,6 +172,27 @@ fetch('/api/config').then((r) => r.json()).then((cfg) => {
 fetch('/api/rounds').then((r) => r.json()).then(renderLastWinners).catch(() => {});
 
 function shortMint(m) { return m ? m.slice(0, 4) + '…' + m.slice(-4) : ''; }
+
+function buildSkinPicker(skins) {
+  const wrap = $('skinPicker');
+  if (!wrap || !skins.length) return;
+  if (!skins.includes(selectedSkin)) selectedSkin = skins[0];
+  wrap.innerHTML = '';
+  for (const c of skins) {
+    const sw = document.createElement('div');
+    sw.className = 'swatch' + (c === selectedSkin ? ' sel' : '');
+    sw.style.background = c;
+    sw.style.color = c; // for the glow (currentColor)
+    sw.title = c;
+    sw.addEventListener('click', () => {
+      selectedSkin = c;
+      localStorage.setItem('solither_skin', c);
+      wrap.querySelectorAll('.swatch').forEach((s) => s.classList.remove('sel'));
+      sw.classList.add('sel');
+    });
+    wrap.appendChild(sw);
+  }
+}
 
 function renderLastWinners(history) {
   if (!history || !history.length) return;
@@ -146,20 +249,30 @@ async function join() {
 function resetBtn() { const b = $('playBtn'); b.disabled = false; b.textContent = 'PLAY'; }
 
 function connectAndJoin(name, wallet) {
+  lastJoin = { name, wallet, color: selectedSkin };
   if (!socket) { socket = io(); wireSocket(); }
-  socket.emit('join', { name, wallet }, (resp) => {
+  socket.emit('join', lastJoin, (resp) => {
     if (!resp || !resp.ok) { $('joinError').textContent = (resp && resp.reason) || 'Could not join.'; resetBtn(); return; }
     myId = resp.playerId;
     world = resp.world || world;
     pred.name = name;
+    if (selectedSkin) pred.color = selectedSkin;
     pred.active = false;
+    prevLen = null;
     buffer.length = 0;
+    hasJoinedOnce = true;
     startPlaying();
   });
 }
 
+function setConn(ok) {
+  const d = $('connDot');
+  if (d) d.classList.toggle('off', !ok);
+}
+
 function startPlaying() {
   playing = true;
+  SFX.init(); // first play is a user gesture — safe to start audio
   spectating = false; specTarget.has = false;
   $('lobby').classList.add('hidden');
   $('deathScreen').classList.add('hidden');
@@ -200,6 +313,7 @@ function wireSocket() {
         const gain = s.me.length - prevLen;
         pops.push({ x: pred.x, y: pred.y - bodyRadius(pred.length) - 8, vy: -0.45, text: '+' + gain, life: 0, max: 750, color: pred.color });
         headFlashUntil = performance.now() + 150;
+        SFX.eat();
       }
       prevLen = s.me.length;
       pred.length = s.me.length || pred.length;
@@ -222,6 +336,8 @@ function wireSocket() {
     playing = false;
     pred.active = false;
     prevLen = null;
+    SFX.stopBoost();
+    SFX.death();
     $('deathReason').textContent =
       info.cause === 'wall' ? 'You hit the edge of the world.'
         : info.killedBy ? `Cut off by ${info.killedBy}.`
@@ -235,15 +351,44 @@ function wireSocket() {
   });
 
   socket.on('roundEnded', (record) => {
+    SFX.roundWin();
     if (record.winners && record.winners.length) {
-      showToast(`🏆 Round ${record.round} winner: ${record.winners[0].name} — top ${serverConfig.rewardTopN} get creator rewards!`);
+      showRoundWin(record);
     } else {
       showToast(`Round ${record.round} ended.`);
     }
   });
   socket.on('kill', (k) => addKillFeed(k));
   socket.on('roundStarted', (st) => updateRoundUI(st));
-  socket.on('disconnect', () => { if (playing) showToast('Disconnected from server.'); });
+
+  // ── Connection status + auto-reconnect ──
+  socket.on('connect', () => {
+    setConn(true);
+    if (hasJoinedOnce && reconnectResume) {
+      socket.emit('join', lastJoin, (resp) => {
+        if (resp && resp.ok) {
+          myId = resp.playerId;
+          pred.active = false; prevLen = null; buffer.length = 0;
+          spectating = false; specTarget.has = false;
+          $('deathScreen').classList.add('hidden');
+          $('spectateBar').classList.add('hidden');
+          playing = true;
+          showToast('Reconnected — back in!');
+        }
+        reconnectResume = false;
+      });
+    }
+  });
+
+  socket.on('disconnect', () => {
+    setConn(false);
+    SFX.stopBoost();
+    if (playing || spectating) { reconnectResume = true; showToast('Connection lost — reconnecting…'); }
+    playing = false;
+  });
+
+  // Manager-level reconnect attempts keep the dot red until we're back.
+  if (socket.io) socket.io.on('reconnect_attempt', () => setConn(false));
 }
 
 function addKillFeed(k) {
@@ -332,6 +477,68 @@ function updateLeaderboard(lb) {
   });
 }
 
+const MEDALS = ['🥇', '🥈', '🥉'];
+function showRoundWin(record) {
+  $('rwNum').textContent = record.round;
+  $('rwTopN').textContent = serverConfig.rewardTopN;
+  const podium = $('rwPodium');
+  podium.innerHTML = '';
+  record.winners.forEach((w, i) => {
+    const li = document.createElement('li');
+    if (i === 0) li.classList.add('rank1');
+    li.innerHTML =
+      `<span class="medal">${MEDALS[i] || '🏅'}</span>` +
+      `<span class="rw-name">${escapeHtml(w.name)}</span>` +
+      `<span class="rw-score">${w.score}</span>`;
+    podium.appendChild(li);
+  });
+  $('roundWinOverlay').classList.remove('hidden');
+  spawnConfetti(150);
+  clearTimeout(rwHideTimer);
+  rwHideTimer = setTimeout(() => $('roundWinOverlay').classList.add('hidden'), 5500);
+}
+
+const CONFETTI_COLORS = ['#14F195', '#9945FF', '#fff', '#F72585', '#FFD166', '#4CC9F0'];
+function spawnConfetti(n) {
+  const W = window.innerWidth;
+  for (let i = 0; i < n; i++) {
+    confetti.push({
+      x: W / 2 + (Math.random() - 0.5) * W * 0.7,
+      y: -20 - Math.random() * 80,
+      vx: (Math.random() - 0.5) * 6,
+      vy: 2 + Math.random() * 4,
+      rot: Math.random() * Math.PI,
+      vr: (Math.random() - 0.5) * 0.3,
+      size: 5 + Math.random() * 6,
+      color: CONFETTI_COLORS[(Math.random() * CONFETTI_COLORS.length) | 0],
+      life: 0, max: 2600 + Math.random() * 1200,
+    });
+  }
+}
+function updateConfetti(dtMs) {
+  const k = dtMs / 16;
+  const H = window.innerHeight;
+  for (let i = confetti.length - 1; i >= 0; i--) {
+    const c = confetti[i];
+    c.life += dtMs;
+    c.x += c.vx * k; c.y += c.vy * k; c.vy += 0.12 * k; c.rot += c.vr * k;
+    if (c.life >= c.max || c.y > H + 30) confetti.splice(i, 1);
+  }
+}
+function drawConfetti() {
+  for (const c of confetti) {
+    const t = 1 - c.life / c.max;
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, t * 2);
+    ctx.translate(c.x, c.y);
+    ctx.rotate(c.rot);
+    ctx.fillStyle = c.color;
+    ctx.fillRect(-c.size / 2, -c.size / 2, c.size, c.size * 0.6);
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+}
+
 let toastTimer = null;
 function showToast(msg) {
   const t = $('toast');
@@ -366,6 +573,22 @@ if (boostBtn) {
 
 function desiredAngle() {
   return Math.atan2(mouse.y - window.innerHeight / 2, mouse.x - window.innerWidth / 2);
+}
+
+// Mute toggle (reflects + persists via SFX/localStorage).
+const muteBtn = $('muteBtn');
+function renderMute() {
+  const m = SFX.isMuted();
+  muteBtn.textContent = m ? '🔇' : '🔊';
+  muteBtn.classList.toggle('muted', m);
+}
+if (muteBtn) {
+  renderMute();
+  muteBtn.addEventListener('click', () => {
+    SFX.init();
+    SFX.setMuted(!SFX.isMuted());
+    renderMute();
+  });
 }
 
 // Send input to server ~22x/s.
@@ -538,6 +761,12 @@ function render(now) {
 
   predict(dt);
   updateFx(dt);
+  updateConfetti(dt);
+
+  // Boost hum: start/stop on transition.
+  if (isBoosting && !wasBoosting) SFX.startBoost();
+  else if (!isBoosting && wasBoosting) SFX.stopBoost();
+  wasBoosting = isBoosting;
 
   // Camera follows the predicted head, or the spectated leader when dead.
   if (spectating && specTarget.has) {
@@ -553,6 +782,8 @@ function render(now) {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   ctx.fillStyle = '#07060d';
   ctx.fillRect(0, 0, W, H);
+  drawNebula(W, H);
+  drawStars(W, H);
 
   ctx.save();
   ctx.translate(W / 2 - cam.x, H / 2 - cam.y);
@@ -579,9 +810,73 @@ function render(now) {
 
   ctx.restore();
 
+  drawConfetti(); // screen-space, above the world
   updateBoostHud();
 
   drawMinimap(remotes);
+}
+
+// ── Parallax starfield + nebula background ───────────────────
+const STAR_TILE = 1000;
+function makeStars(n, sizeMax, aBase) {
+  const arr = [];
+  for (let i = 0; i < n; i++) {
+    arr.push({
+      x: Math.random() * STAR_TILE,
+      y: Math.random() * STAR_TILE,
+      size: 0.6 + Math.random() * sizeMax,
+      a: aBase * (0.4 + Math.random() * 0.6),
+      phase: Math.random() * Math.PI * 2,
+      tint: Math.random() < 0.22 ? (Math.random() < 0.5 ? '#9945FF' : '#14F195') : '#ffffff',
+    });
+  }
+  return arr;
+}
+const starLayers = [
+  { parallax: 0.15, stars: makeStars(50, 1.4, 0.55) }, // far, dim, slow
+  { parallax: 0.35, stars: makeStars(35, 2.2, 0.9) },  // near, brighter, faster
+];
+const nebula = [
+  { x: -600, y: -400, r: 900, color: 'rgba(153,69,255,0.10)' },
+  { x: 700, y: 520, r: 1000, color: 'rgba(20,241,149,0.07)' },
+  { x: 250, y: -900, r: 820, color: 'rgba(72,201,240,0.06)' },
+];
+
+function drawNebula(W, H) {
+  const p = 0.2;
+  for (const n of nebula) {
+    const sx = W / 2 + (n.x - cam.x * p);
+    const sy = H / 2 + (n.y - cam.y * p);
+    const g = ctx.createRadialGradient(sx, sy, 0, sx, sy, n.r);
+    g.addColorStop(0, n.color);
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+  }
+}
+
+function drawStars(W, H) {
+  const now = performance.now();
+  for (const layer of starLayers) {
+    const p = layer.parallax;
+    const ox = ((cam.x * p) % STAR_TILE + STAR_TILE) % STAR_TILE;
+    const oy = ((cam.y * p) % STAR_TILE + STAR_TILE) % STAR_TILE;
+    for (const s of layer.stars) {
+      let bx = s.x - ox; if (bx < 0) bx += STAR_TILE;
+      let by = s.y - oy; if (by < 0) by += STAR_TILE;
+      const tw = 0.5 + 0.5 * Math.sin(now * 0.002 + s.phase);
+      ctx.globalAlpha = s.a * (0.5 + 0.5 * tw);
+      ctx.fillStyle = s.tint;
+      for (let tx = bx - STAR_TILE; tx < W; tx += STAR_TILE) {
+        for (let ty = by - STAR_TILE; ty < H; ty += STAR_TILE) {
+          ctx.beginPath();
+          ctx.arc(tx, ty, s.size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+  }
+  ctx.globalAlpha = 1;
 }
 
 function drawGrid(W, H) {
