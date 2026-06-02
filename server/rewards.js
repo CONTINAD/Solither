@@ -1,4 +1,8 @@
 import { config } from './config.js';
+import { recordPayout } from './rewardsLedger.js';
+
+// SOL split weights by rank (top 3). Normalized over however many winners exist.
+const REWARD_WEIGHTS = [0.5, 0.3, 0.2];
 
 // ─────────────────────────────────────────────────────────────
 // Reward rounds: every ROUND_SECONDS, snapshot the top N *human*
@@ -47,11 +51,17 @@ export class RoundManager {
       .sort((a, b) => b.score - a.score)
       .slice(0, this.topN);
 
+    // Split the round's SOL pool among the winners (normalized rank weights).
+    const weights = REWARD_WEIGHTS.slice(0, ranked.length);
+    const wsum = weights.reduce((a, b) => a + b, 0) || 1;
+    const pool = config.rewardPoolSol;
+
     const winners = ranked.map((p, i) => ({
       rank: i + 1,
       name: p.name,
       wallet: p.wallet,
       score: p.score,
+      sol: Math.round((pool * (weights[i] / wsum)) * 1e4) / 1e4,
     }));
 
     const record = {
@@ -62,10 +72,13 @@ export class RoundManager {
     this.history.push(record);
     if (this.history.length > 50) this.history.shift();
 
+    // Accrue the per-wallet + total SOL ledger (shown in the lobby).
+    if (winners.length) recordPayout(winners);
+
     if (winners.length) {
       console.log(`\n[Solither] ── Round ${this.roundNumber} complete ──`);
       for (const w of winners) {
-        console.log(`  #${w.rank}  ${w.name}  (${w.wallet})  score=${w.score}`);
+        console.log(`  #${w.rank}  ${w.name}  (${w.wallet})  score=${w.score}  +${w.sol} SOL`);
       }
     } else {
       console.log(`[Solither] Round ${this.roundNumber} complete — no eligible players.`);

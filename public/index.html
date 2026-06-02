@@ -81,6 +81,12 @@
 
       <div id="gateNote" class="gate"></div>
 
+      <div id="rewardsBanner" class="rewards-banner hidden">
+        <div class="rb-label">💰 Rewards sent to players</div>
+        <div class="rb-total"><b id="rbTotal">0</b> SOL</div>
+        <div class="rb-sub" id="rbSub"></div>
+      </div>
+
       <label class="field">
         <span>Your name</span>
         <input id="nameInput" maxlength="16" placeholder="degen420" autocomplete="off" />
@@ -108,6 +114,11 @@
       <div id="winnersBox" class="winners hidden">
         <div class="winners-title">Recent round winners</div>
         <div id="recentRounds"></div>
+      </div>
+
+      <div id="topEarnersBox" class="winners hidden">
+        <div class="winners-title">💰 Top earners (SOL)</div>
+        <ol id="topEarnersList"></ol>
       </div>
 
       <div id="highScoresBox" class="winners hidden">

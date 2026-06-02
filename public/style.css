@@ -46,6 +46,8 @@ canvas#game {
 
 .lobby-card {
   width: min(92vw, 420px);
+  max-height: 94vh;
+  overflow-y: auto;
   background: var(--panel);
   border: 1px solid var(--panel-border);
   border-radius: 22px;
@@ -53,6 +55,22 @@ canvas#game {
   backdrop-filter: blur(14px);
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.03) inset;
 }
+
+.rewards-banner {
+  text-align: center;
+  border-radius: 14px;
+  padding: 12px;
+  margin-bottom: 16px;
+  border: 1px solid rgba(20, 241, 149, 0.35);
+  background: linear-gradient(180deg, rgba(20,241,149,0.10), rgba(153,69,255,0.08));
+}
+.rewards-banner .rb-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.7; }
+.rewards-banner .rb-total { font-size: 30px; font-weight: 700; margin-top: 2px; }
+.rewards-banner .rb-total b {
+  background: linear-gradient(90deg, var(--sol-green), var(--sol-purple));
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+}
+.rewards-banner .rb-sub { font-size: 11px; opacity: 0.55; margin-top: 2px; }
 
 .logo {
   font-size: 44px;

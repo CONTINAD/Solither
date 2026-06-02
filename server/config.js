@@ -18,6 +18,10 @@ export const config = {
   // Rounds
   roundSeconds: num(process.env.ROUND_SECONDS, 180),
   rewardTopN: num(process.env.REWARD_TOP_N, 3),
+
+  // SOL reward pool distributed among the top players each round (split 50/30/20).
+  // This drives the rewards ledger shown in the lobby; your payout bot settles it.
+  rewardPoolSol: num(process.env.ROUND_REWARD_SOL, 0.25),
 };
 
 // Demo mode = no real token configured, so the wallet gate is bypassed.

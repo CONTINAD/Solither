@@ -3,6 +3,6 @@ node_modules/
 npm-debug.log*
 .DS_Store
 .claude/*.lock
-data/highscores.json
+data/
 .railway-token
 .mcp.json

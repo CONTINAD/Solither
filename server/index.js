@@ -9,6 +9,7 @@ import { verifyWallet } from './solana.js';
 import { Game, SIM, SKINS } from './game.js';
 import { RoundManager } from './rewards.js';
 import { recordScore, topScores } from './highscores.js';
+import { rewardsSummary } from './rewardsLedger.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
@@ -46,6 +47,10 @@ app.get('/api/rounds', (req, res) => {
 
 app.get('/api/highscores', (req, res) => {
   res.json(topScores());
+});
+
+app.get('/api/rewards', (req, res) => {
+  res.json({ ...rewardsSummary(10), roundPoolSol: config.rewardPoolSol });
 });
 
 // ── Game + rounds ────────────────────────────────────────────

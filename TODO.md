@@ -22,6 +22,9 @@ one-line note. When all are checked, append new high-value ideas and keep going.
 - [x] Boost now burns leaderboard SCORE too (not just length), floored at 0 — wasting mass on boost costs you rank (user-requested)
 - [x] Boost mass-drop verified: each boost tick burns 1 length + drops a booster-colored r=6 pellet at the tail, collectible by anyone (headless-tested: 7 burns→7 drops near tail, eater grows)
 
+## Rewards ledger (user-requested)
+- [x] Lobby shows "💰 Rewards sent to players" total SOL + "Top earners (SOL)" board. server/rewardsLedger.js persists per-wallet SOL + grand total to data/rewards-ledger.json; each round splits config.rewardPoolSol (ROUND_REWARD_SOL, default 0.25) among top 3 by 50/30/20; /api/rewards serves it. Verified: split math + accrual (headless) and lobby banner/board (UI).
+
 ## Audio
 - [x] Web Audio SFX: synthesized eat/boost-hum/death/round-win, HUD mute button (🔊/🔇) persisted to localStorage; audio inits on first play gesture
 

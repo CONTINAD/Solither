@@ -171,11 +171,38 @@ fetch('/api/config').then((r) => r.json()).then((cfg) => {
 
 fetch('/api/rounds').then((r) => r.json()).then(renderRecentRounds).catch(() => {});
 fetchHighScores();
+fetchRewards();
 
 function shortMint(m) { return m ? m.slice(0, 4) + '…' + m.slice(-4) : ''; }
 
 function fetchHighScores() {
   fetch('/api/highscores').then((r) => r.json()).then(renderHighScores).catch(() => {});
+}
+
+const fmtSol = (n) => (n || 0).toLocaleString(undefined, { maximumFractionDigits: 4 });
+
+function fetchRewards() {
+  fetch('/api/rewards').then((r) => r.json()).then(renderRewards).catch(() => {});
+}
+
+function renderRewards(d) {
+  if (!d) return;
+  $('rbTotal').textContent = fmtSol(d.totalSol);
+  const pool = d.roundPoolSol || 0;
+  $('rbSub').textContent = `${fmtSol(pool)} SOL/round · split among top ${serverConfig.rewardTopN} · ${d.rounds || 0} rounds paid`;
+  $('rewardsBanner').classList.remove('hidden');
+
+  if (d.top && d.top.length) {
+    const ol = $('topEarnersList');
+    ol.innerHTML = '';
+    d.top.forEach((e, i) => {
+      const li = document.createElement('li');
+      const label = e.name || shortMint(e.wallet);
+      li.innerHTML = `<span class="w-name">#${i + 1} ${escapeHtml(label)}</span><span>${fmtSol(e.sol)} SOL</span>`;
+      ol.appendChild(li);
+    });
+    $('topEarnersBox').classList.remove('hidden');
+  }
 }
 
 function renderHighScores(list) {
@@ -496,6 +523,7 @@ $('quitBtn').addEventListener('click', () => {
   $('lobby').classList.remove('hidden');
   fetch('/api/rounds').then((r) => r.json()).then(renderRecentRounds).catch(() => {});
   fetchHighScores();
+  fetchRewards();
 });
 
 // ── Round / leaderboard UI ───────────────────────────────────
