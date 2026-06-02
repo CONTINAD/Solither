@@ -22,6 +22,9 @@ one-line note. When all are checked, append new high-value ideas and keep going.
 - [x] Boost now burns leaderboard SCORE too (not just length), floored at 0 — wasting mass on boost costs you rank (user-requested)
 - [x] Boost mass-drop verified: each boost tick burns 1 length + drops a booster-colored r=6 pellet at the tail, collectible by anyone (headless-tested: 7 burns→7 drops near tail, eater grows)
 
+## Rewards (user-requested)
+- [x] Reward split reworked: TOP 5 winners get fixed % of the pool — 1st 30% / 2nd 20% / 3rd 15% / 4th 10% / 5th 10% (=85% to players); creator keeps the remaining 15% (no normalization). REWARD_TOP_N=5. Tagline/leaderboard-note/banner all read "top 5" dynamically. Verified split headlessly (0.075/0.05/0.0375/0.025/0.025 of 0.25; creator 0.0375). NOTE: actual on-chain claim-a-few-seconds-before + distribute-to-holders is the payout bot's job (payoutHook).
+
 ## Rewards ledger (user-requested)
 - [x] Lobby shows "💰 Rewards sent to players" total SOL + "Top earners (SOL)" board. server/rewardsLedger.js persists per-wallet SOL + grand total to data/rewards-ledger.json; each round splits config.rewardPoolSol (ROUND_REWARD_SOL, default 0.25) among top 3 by 50/30/20; /api/rewards serves it. Verified: split math + accrual (headless) and lobby banner/board (UI).
 

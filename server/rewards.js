@@ -1,8 +1,9 @@
 import { config } from './config.js';
 import { recordPayout } from './rewardsLedger.js';
 
-// SOL split weights by rank (top 3). Normalized over however many winners exist.
-const REWARD_WEIGHTS = [0.5, 0.3, 0.2];
+// Fixed SOL split by rank (top 5): 30/20/15/10/10% of the pool = 85% to players.
+// NOT normalized — the remaining 15% (and any unfilled ranks) is the creator's cut.
+const REWARD_WEIGHTS = [0.30, 0.20, 0.15, 0.10, 0.10];
 
 // ─────────────────────────────────────────────────────────────
 // Reward rounds: every ROUND_SECONDS, snapshot the top N *human*
@@ -51,9 +52,8 @@ export class RoundManager {
       .sort((a, b) => b.score - a.score)
       .slice(0, this.topN);
 
-    // Split the round's SOL pool among the winners (normalized rank weights).
-    const weights = REWARD_WEIGHTS.slice(0, ranked.length);
-    const wsum = weights.reduce((a, b) => a + b, 0) || 1;
+    // Each rank gets a FIXED % of the gross pool (30/20/15/10/10). The unused
+    // 15% (+ any unfilled ranks) is the creator's cut — not distributed.
     const pool = config.rewardPoolSol;
 
     const winners = ranked.map((p, i) => ({
@@ -61,7 +61,7 @@ export class RoundManager {
       name: p.name,
       wallet: p.wallet,
       score: p.score,
-      sol: Math.round((pool * (weights[i] / wsum)) * 1e4) / 1e4,
+      sol: Math.round((pool * (REWARD_WEIGHTS[i] || 0)) * 1e4) / 1e4,
     }));
 
     const record = {

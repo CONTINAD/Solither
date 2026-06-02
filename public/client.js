@@ -164,6 +164,7 @@ fetch('/api/config').then((r) => r.json()).then((cfg) => {
   world.radius = SIM.worldRadius;
   $('roundMins').textContent = Math.round(cfg.roundSeconds / 60);
   $('topNNote').textContent = cfg.rewardTopN;
+  const tagN = $('taglineTopN'); if (tagN) tagN.textContent = cfg.rewardTopN;
   buildSkinPicker(cfg.skins || []);
   const gate = $('gateNote');
   if (cfg.demoMode) {

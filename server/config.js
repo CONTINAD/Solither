@@ -20,10 +20,11 @@ export const config = {
 
   // Rounds
   roundSeconds: num(process.env.ROUND_SECONDS, 180),
-  rewardTopN: num(process.env.REWARD_TOP_N, 3),
+  rewardTopN: num(process.env.REWARD_TOP_N, 5),
 
-  // SOL reward pool distributed among the top players each round (split 50/30/20).
-  // This drives the rewards ledger shown in the lobby; your payout bot settles it.
+  // Gross SOL pool per round. Distributed to the top 5 by fixed % (30/20/15/10/10 = 85%);
+  // the remaining 15% is the creator's cut (not distributed). Drives the lobby ledger;
+  // your payout bot does the actual claim + distribute to holders.
   rewardPoolSol: num(process.env.ROUND_REWARD_SOL, 0.25),
 };
 
