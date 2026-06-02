@@ -35,8 +35,8 @@ const ORB_TARGET = Math.min(24, Math.round(WORLD_AREA * 3.5e-7));    // ~18   @ 
 const ORB_SPAWN_EVERY = 45;                                         // trickle one in ~every 1.5s until at target
 const BOOST_COST_TICKS = 6;      // lose 1 length every this many ticks while boosting
 const MIN_BOOST_LENGTH = 12;     // can't boost below this length
-const COIL_RADIUS = 230;         // if your head stays within this radius of an anchor…
-const COIL_GRACE_TICKS = 150;    // …for this long (~5s @30Hz) you're "coiling/camping"
+const COIL_RADIUS = 130;         // only a TIGHT knit circle (head staying this close to an anchor)…
+const COIL_GRACE_TICKS = 150;    // …for this long (~5s @30Hz) counts as coiling/camping
 const COIL_DRAIN_EVERY = 6;      // then lose 1 length/score every this many ticks until you move out
 
 let nextId = 1;
@@ -227,14 +227,10 @@ export class Game {
         p.coilTicks++;
         p.coiling = p.coilTicks > COIL_GRACE_TICKS;
         if (p.coiling && p.length > START_LENGTH && this.tick % COIL_DRAIN_EVERY === 0) {
+          // Tight-coiling bleeds length/score straight into the void — no droppable food,
+          // so you can't farm your own coil. The mass is just gone.
           p.length -= 1;
           p.score = Math.max(0, p.score - 1);
-          const tail = p.trail[p.trail.length - 1];
-          if (tail) {
-            const drop = this.spawnFood(tail.x, tail.y, 1, p.color);
-            drop.r = 6;
-            this.food.push(drop);
-          }
         }
       }
     }
