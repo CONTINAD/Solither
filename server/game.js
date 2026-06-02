@@ -2,7 +2,7 @@
 // Solither game engine — server-authoritative slither simulation.
 // ─────────────────────────────────────────────────────────────
 
-export const WORLD = { radius: 12000 };
+export const WORLD = { radius: 4000 };
 
 // Shared with the client for prediction — keep in sync with the constants below.
 export const SIM = {
@@ -13,7 +13,7 @@ export const SIM = {
   pointSpacing: 4,
   startLength: 20,
   minBoostLength: 12,
-  worldRadius: 12000,
+  worldRadius: WORLD.radius, // single source of truth — never let these drift apart
 };
 
 const TICK_RATE = 30;            // simulation steps per second
@@ -23,8 +23,16 @@ const TURN_RATE = 0.24;          // max radians the head can turn per tick
 const START_LENGTH = 20;         // initial number of trail points
 const POINT_SPACING = 4;         // distance between recorded trail points
 const SEGMENT_EVERY = 5;         // render a body circle every N trail points
-const FOOD_TARGET = 4000;        // scales with the larger world (keeps decent food density)
-const BOT_TARGET = 20;           // bots kept alive to fill the (now larger) arena
+// Food + bot counts are DERIVED from the world area so resizing the arena can never
+// silently make it feel empty (sparse food, no snakes in view) again. Tuned against the
+// ~1400u view radius in cullFrameFor. Caps guard against pathologically huge worlds.
+const WORLD_AREA = Math.PI * WORLD.radius * WORLD.radius;
+const FOOD_TARGET = Math.min(9000, Math.round(WORLD_AREA * 1.5e-4)); // ~7500 @ r=4000 — dense, plenty to eat
+const BOT_TARGET = Math.min(40, Math.round(WORLD_AREA * 5.2e-7));    // ~26   @ r=4000
+// Chunky +5 orbs: worth seeking out, but kept sparse so they stay a treat (not a carpet).
+const ORB_VALUE = 5;
+const ORB_TARGET = Math.min(24, Math.round(WORLD_AREA * 3.5e-7));    // ~18   @ r=4000 → a couple in view
+const ORB_SPAWN_EVERY = 45;                                         // trickle one in ~every 1.5s until at target
 const BOOST_COST_TICKS = 6;      // lose 1 length every this many ticks while boosting
 const MIN_BOOST_LENGTH = 12;     // can't boost below this length
 const COIL_RADIUS = 230;         // if your head stays within this radius of an anchor…
@@ -72,7 +80,7 @@ export class Game {
     this.onDeath = null; // optional callback(player)
   }
 
-  spawnFood(x, y, value = 1, color = null) {
+  spawnFood(x, y, value = 1, color = null, orb = false) {
     if (x === undefined) {
       const a = rand(0, Math.PI * 2);
       const r = Math.sqrt(Math.random()) * (WORLD.radius - 30);
@@ -82,8 +90,9 @@ export class Game {
     return {
       x, y,
       value,
-      color: color || (Math.random() < 0.12 ? '#9945FF' : '#14F195'),
-      r: value > 1 ? 7 : 5,
+      color: color || (orb ? '#FFD166' : (Math.random() < 0.12 ? '#9945FF' : '#14F195')),
+      r: orb ? 12 : (value > 1 ? 7 : 5),
+      orb,
     };
   }
 
@@ -183,6 +192,13 @@ export class Game {
     // Top up food.
     while (this.food.length < FOOD_TARGET) this.food.push(this.spawnFood());
 
+    // Trickle in chunky +5 orbs toward a small cap — steady appearance, never a flood.
+    if (this.tick % ORB_SPAWN_EVERY === 0) {
+      let orbs = 0;
+      for (const f of this.food) if (f.orb) orbs++;
+      if (orbs < ORB_TARGET) this.food.push(this.spawnFood(undefined, undefined, ORB_VALUE, null, true));
+    }
+
     for (const p of this.players.values()) {
       if (!p.alive) continue;
       if (p.isBot) this.botThink(p);
@@ -256,13 +272,9 @@ export class Game {
     p.x = clamped.x;
     p.y = clamped.y;
     if (clamped.hitWall) {
-      // Soft wall: nobody dies at the edge — glide along it. Steer toward whichever
-      // tangent is closest to the current heading so the snake slides instead of pinning.
-      const inward = Math.atan2(-p.y, -p.x);
-      const t1 = inward + Math.PI / 2, t2 = inward - Math.PI / 2;
-      const tangent = Math.abs(angWrap(t1 - p.angle)) < Math.abs(angWrap(t2 - p.angle)) ? t1 : t2;
-      p.angle += Math.max(-TURN_RATE, Math.min(TURN_RATE, angWrap(tangent - p.angle)));
-      if (p.isBot) p.targetAngle = p.angle;
+      // Hard wall: touching the edge of the world kills you.
+      this.kill(p, 'wall');
+      return;
     }
 
     // Record trail.
@@ -396,7 +408,7 @@ export class Game {
 
     // 2. Scan others for danger (nearby bodies) and prey (smaller, closeby heads).
     let avoidX = 0, avoidY = 0, danger = false;
-    const dangerR = 100 + headR;        // react closer → easier for players to cut them off
+    const dangerR = 70 + headR;         // weak avoidance → easy to trap / cut off (bots are filler pre-launch)
     const dangerR2 = dangerR * dangerR;
     let prey = null, preyD2 = 260 * 260; // shorter prey sight (easier bots)
 
@@ -428,8 +440,8 @@ export class Game {
       return;
     }
 
-    // 3. Hunt — only the more aggressive bots, no boost-chasing, loose aim (easy to juke).
-    if (prey && p._aggro > 0.5) {
+    // 3. Hunt — only a handful of bots ever chase, no boost, loose aim (easy to juke / mostly passive).
+    if (prey && p._aggro > 0.9) {
       const lead = 30;
       const tx = prey.x + Math.cos(prey.angle) * lead;
       const ty = prey.y + Math.sin(prey.angle) * lead;

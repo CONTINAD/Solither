@@ -86,9 +86,17 @@
 
   <!-- ── Join / lobby screen ─────────────────────────────── -->
   <div id="lobby">
+    <div class="lobby-row">
+    <aside class="lobby-explainer">
+      <div class="exp-title">How it works</div>
+      <div class="exp-item"><span class="exp-ic">🎯</span><div><b>Goal</b><p>Grow the longest snake. Eat glowing orbs to get longer and cut off rivals to kill them — but never ram another snake's body or the outer wall, or you die instantly.</p></div></div>
+      <div class="exp-item"><span class="exp-ic">🪙</span><div><b>Getting in</b><p>Enter a name, paste your <b>Solana wallet</b> (that's where any rewards are sent), pick a skin, and hit PLAY. <span id="exGate">Free to play in demo mode.</span></p></div></div>
+      <div class="exp-item"><span class="exp-ic">💰</span><div><b>Win real SOL</b><p>Every <b id="exRoundMins">3</b> minutes the round ends and the top <b id="exTopN">5</b> snakes split creator-fee SOL, paid straight to their wallets.</p></div></div>
+      <div class="exp-item"><span class="exp-ic">🎮</span><div><b>Controls</b><p>Steer with mouse or touch. Hold click / space / the BOOST button to sprint — boosting burns a little of your length.</p></div></div>
+      <div class="exp-item"><span class="exp-ic">⭐</span><div><b>Gold orbs &amp; the crown</b><p>Gold orbs are worth <b>+5</b> — chase them down. The current #1 snake wears a 👑 crown for everyone to hunt.</p></div></div>
+    </aside>
     <div class="lobby-card">
-      <img src="/logo.png" class="lobby-logo" alt="Solither" />
-      <h1 class="logo">SOL<span>ITHER</span></h1>
+      <img src="/banner.jpg" class="lobby-banner" alt="Solither — Snake Hunt" />
       <p class="tagline">Sol + Slither · grow the longest snake · top <b id="taglineTopN">5</b> split creator rewards every <b id="roundMins">5</b> min</p>
 
       <div id="gateNote" class="gate"></div>
@@ -137,6 +145,7 @@
         <div class="winners-title">🏆 All-time high scores</div>
         <ol id="highScoresList"></ol>
       </div>
+    </div>
     </div>
     <div class="footer">Not financial advice. Play responsibly.</div>
   </div>

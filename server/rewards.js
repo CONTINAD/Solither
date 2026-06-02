@@ -1,5 +1,14 @@
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { config } from './config.js';
 import { recordPayout } from './rewardsLedger.js';
+
+// Round history + counter persist to data/rounds.json so the "recent rounds" list and
+// the round number survive restarts/redeploys (when DATA_DIR points at a persistent volume).
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
+const ROUNDS_FILE = path.join(DATA_DIR, 'rounds.json');
 
 // Fixed SOL split by rank (top 5): 30/20/15/10/10% of the pool = 85% to players.
 // NOT normalized — the remaining 15% (and any unfilled ranks) is the creator's cut.
@@ -25,6 +34,24 @@ export class RoundManager {
     this.roundEndsAt = Date.now() + this.roundLength;
     this.history = []; // [{ round, endedAt, winners: [...] }]
     this.payoutHook = null; // optional: async (winners, round) => void
+    this._load(); // resume round number + recent history across restarts
+  }
+
+  _load() {
+    try {
+      const d = JSON.parse(fs.readFileSync(ROUNDS_FILE, 'utf8'));
+      if (d && Array.isArray(d.history)) this.history = d.history.slice(-50);
+      if (d && typeof d.roundNumber === 'number' && d.roundNumber > 0) this.roundNumber = d.roundNumber;
+    } catch { /* fresh start — no saved rounds yet */ }
+  }
+
+  _save() {
+    try {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+      fs.writeFileSync(ROUNDS_FILE, JSON.stringify({ roundNumber: this.roundNumber, history: this.history }, null, 2));
+    } catch (e) {
+      console.error('[rounds] save failed:', e.message);
+    }
   }
 
   msRemaining() {
@@ -97,6 +124,7 @@ export class RoundManager {
     // Start the next round.
     this.roundNumber += 1;
     this.roundEndsAt = Date.now() + this.roundLength;
+    this._save(); // persist new round number + history so a redeploy resumes, not resets
     this.io.emit('roundStarted', this.status());
   }
 }

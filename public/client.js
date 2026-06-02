@@ -125,6 +125,7 @@ const NET_HZ = 22;
 const INTERP_DELAY = 95; // ms behind realtime for smooth remote motion
 const buffer = [];       // [{ t, byId:Map, food }]
 let latestFood = [];
+let latestBlips = [];    // [[x,y],…] every alive snake in the world — for a full minimap
 let leaderboardData = [];
 let onlineCount = 0;
 
@@ -167,15 +168,20 @@ fetch('/api/config').then((r) => r.json()).then((cfg) => {
   $('roundMins').textContent = Math.round(cfg.roundSeconds / 60);
   $('topNNote').textContent = cfg.rewardTopN;
   const tagN = $('taglineTopN'); if (tagN) tagN.textContent = cfg.rewardTopN;
+  const exTopN = $('exTopN'); if (exTopN) exTopN.textContent = cfg.rewardTopN;
+  const exRm = $('exRoundMins'); if (exRm) exRm.textContent = Math.round(cfg.roundSeconds / 60);
   buildSkinPicker(cfg.skins || []);
   const gate = $('gateNote');
+  const exGate = $('exGate');
   if (cfg.demoMode) {
     gate.classList.add('demo');
     gate.innerHTML = '🟢 <b>Demo mode</b> — no token required. Paste any wallet to try it.';
+    if (exGate) exGate.textContent = 'Free to play in demo mode — no token needed yet.';
   } else {
     gate.innerHTML =
       `🔒 Hold <b>${cfg.minTokenBalance.toLocaleString()}</b> tokens of ` +
       `<code>${shortMint(cfg.tokenMint)}</code> to play.`;
+    if (exGate) exGate.textContent = `Hold ${cfg.minTokenBalance.toLocaleString()} of the ${shortMint(cfg.tokenMint)} token to play.`;
   }
 }).catch(() => {});
 
@@ -378,6 +384,7 @@ function wireSocket() {
     buffer.push({ t: performance.now(), byId, food: s.food || [] });
     while (buffer.length > 14) buffer.shift();
     latestFood = s.food || latestFood;
+    if (s.blips) latestBlips = s.blips;
 
     // Spectate target (sent only while we're spectating the leader).
     if (spectating && s.spectate) {
@@ -417,7 +424,10 @@ function wireSocket() {
         pred.active = true;
         pred.x = s.me.x; pred.y = s.me.y; pred.a = typeof s.me.a === 'number' ? s.me.a : 0;
         seedTrail();
-        if (!cam.init) { cam.x = pred.x; cam.y = pred.y; cam.init = true; }
+        // Snap the camera onto every fresh spawn — not just the first. Otherwise on
+        // respawn the camera stays where you died (often at the wall) and slides over
+        // slowly, making it look like you spawned outside the world.
+        cam.x = pred.x; cam.y = pred.y; cam.init = true;
       }
     }
   });
@@ -1013,9 +1023,14 @@ function render(now) {
   drawFx();
 
   const remotes = interpolatedSnakes();
-  for (const sn of remotes) drawSnake(sn.segs, sn.x, sn.y, sn.a, sn.r, sn.color, sn.name, sn.boosting);
+  const leaderId = leaderboardData.length ? leaderboardData[0].id : null;
+  for (const sn of remotes) {
+    drawSnake(sn.segs, sn.x, sn.y, sn.a, sn.r, sn.color, sn.name, sn.boosting);
+    if (sn.id === leaderId) drawCrown(sn.x, sn.y, sn.r);
+  }
   if (pred.active) {
     drawSnake(pred.trail.map((p) => [p.x, p.y]), pred.x, pred.y, pred.a, bodyRadius(pred.length), pred.color, pred.name, isBoosting);
+    if (myId === leaderId) drawCrown(pred.x, pred.y, bodyRadius(pred.length));
     // Head flash on eat.
     if (performance.now() < headFlashUntil) {
       ctx.globalAlpha = 0.6;
@@ -1133,6 +1148,15 @@ function drawFood() {
     ctx.beginPath(); ctx.arc(x, y, r * 2.1, 0, Math.PI * 2); ctx.fill();
     ctx.globalAlpha = 1;
     ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+    // Chunky +5 orbs (big radius) get a pulsing ring so they read as a prize.
+    if (r >= 10) {
+      const pulse = 1.25 + Math.sin(performance.now() / 220) * 0.18;
+      ctx.globalAlpha = 0.6;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(x, y, r * pulse, 0, Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
   }
 }
 
@@ -1200,6 +1224,38 @@ function drawEyes(hx, hy, a, r) {
   }
 }
 
+// Gold crown worn by the current #1 snake — sits just on top of the head.
+function drawCrown(hx, hy, r) {
+  const w = Math.max(18, r * 1.7);
+  const h = w * 0.6;
+  const bot = hy - r - 2;            // rest it just above the head
+  const top = bot - h;
+  const midY = bot - h * 0.42;
+  const cx = hx, left = hx - w / 2, right = hx + w / 2;
+  ctx.save();
+  ctx.shadowColor = '#FFD166';
+  ctx.shadowBlur = 8;
+  ctx.fillStyle = '#FFD54A';
+  ctx.beginPath();
+  ctx.moveTo(left, bot);
+  ctx.lineTo(left, top + h * 0.18);          // left spike
+  ctx.lineTo(left + w * 0.28, midY);          // valley
+  ctx.lineTo(cx, top - h * 0.12);             // tallest center spike
+  ctx.lineTo(right - w * 0.28, midY);         // valley
+  ctx.lineTo(right, top + h * 0.18);          // right spike
+  ctx.lineTo(right, bot);
+  ctx.closePath();
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = 'rgba(120,80,0,0.7)';
+  ctx.stroke();
+  // center ruby
+  ctx.fillStyle = '#FF4D6D';
+  ctx.beginPath(); ctx.arc(cx, top + h * 0.1, Math.max(1.5, r * 0.14), 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+
 function drawMinimap(remotes) {
   const size = 160, R = world.radius;
   mctx.clearRect(0, 0, size, size);
@@ -1211,6 +1267,14 @@ function drawMinimap(remotes) {
   const scale = (size / 2 - 4) / R;
   const toMap = (x, y) => [size / 2 + x * scale, size / 2 + y * scale];
 
+  // Every alive snake in the world (server blips) — so the minimap shows the whole arena,
+  // not just what's on screen.
+  mctx.fillStyle = 'rgba(255,255,255,0.5)';
+  for (const b of latestBlips) {
+    const [mx, my] = toMap(b[0], b[1]);
+    mctx.beginPath(); mctx.arc(mx, my, 1.6, 0, Math.PI * 2); mctx.fill();
+  }
+  // Nearby snakes get their real color painted on top.
   for (const sn of remotes) {
     const [mx, my] = toMap(sn.x, sn.y);
     mctx.fillStyle = sn.color;

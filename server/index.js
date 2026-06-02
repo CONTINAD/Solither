@@ -193,6 +193,9 @@ setInterval(() => {
   const roundStatus = rounds.status();
   const humans = countHumans();
   const frame = game.buildFrame(); // built ONCE per tick, shared across all viewers
+  // Global minimap blips: every alive snake's position (tiny — just coords).
+  const blips = [];
+  for (const p of game.players.values()) if (p.alive) blips.push([Math.round(p.x), Math.round(p.y)]);
   for (const [pid, socket] of socketByPlayerId) {
     const player = game.players.get(pid);
     if (!player) continue;
@@ -220,6 +223,7 @@ setInterval(() => {
         : { id: player.id, alive: false, score: player.score },
       ...game.cullFrameFor(frame, Math.round(center.x), Math.round(center.y)),
       spectate,
+      blips,
       leaderboard: lb,
       round: roundStatus,
       players: humans,
