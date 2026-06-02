@@ -2,7 +2,7 @@
 // Solither game engine — server-authoritative slither simulation.
 // ─────────────────────────────────────────────────────────────
 
-export const WORLD = { radius: 4000 };
+export const WORLD = { radius: 4400 };
 
 // Shared with the client for prediction — keep in sync with the constants below.
 export const SIM = {
@@ -201,6 +201,18 @@ export class Game {
       if (orbs < ORB_TARGET) this.food.push(this.spawnFood(undefined, undefined, ORB_VALUE, null, true));
     }
 
+    // Mark the current top 3 (by score) so movePlayer can slow them down a touch.
+    {
+      let a = null, b = null, c = null; // top-3 players by score, descending
+      for (const p of this.players.values()) {
+        if (!p.alive) continue;
+        if (!a || p.score > a.score) { c = b; b = a; a = p; }
+        else if (!b || p.score > b.score) { c = b; b = p; }
+        else if (!c || p.score > c.score) { c = p; }
+      }
+      this._top3 = new Set([a, b, c].filter(Boolean).map((p) => p.id));
+    }
+
     for (const p of this.players.values()) {
       if (!p.alive) continue;
       if (p.isBot) this.botThink(p);
@@ -262,6 +274,13 @@ export class Game {
       }
     } else {
       p.boosting = false;
+    }
+
+    // Top-3 catch-up: the current leaders move a little slower, scaled by their size,
+    // so the pack can close in and nobody runs away with the round just by being huge.
+    if (this._top3 && this._top3.has(p.id)) {
+      const penalty = Math.min(0.18, Math.max(0, (p.length - 50) / 450) * 0.18);
+      speed *= (1 - penalty);
     }
 
     let nx = p.x + Math.cos(p.angle) * speed;
@@ -360,7 +379,9 @@ export class Game {
     // snowballing off big kills). Total drop value is split into chunky pellets along the body.
     const totalDrop = Math.round(p.length * 0.5);
     if (totalDrop > 0) {
-      const pellets = Math.max(1, Math.min(60, Math.round(p.length / 10)));
+      // Cap each loot pellet at +4 (mostly 4s, a few 3s) so corpse drops stay distinct
+      // from the +5 gold orbs. Enough pellets to carry the full half-mass total.
+      const pellets = Math.max(1, Math.min(150, Math.ceil(totalDrop / 4)));
       const base = Math.floor(totalDrop / pellets);
       let extra = totalDrop - base * pellets;
       const stride = Math.max(1, Math.floor(p.trail.length / pellets));

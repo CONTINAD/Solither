@@ -469,6 +469,10 @@ function wireSocket() {
     pred.active = false; prevLen = null; buffer.length = 0;
     if (playing) showToast('🔄 Arena wiped — fresh start, everyone reset!');
   });
+  socket.on('gateLost', (info) => {
+    // Server kicked us — wallet no longer holds enough tokens. Back to lobby, no auto-rejoin.
+    sendToLobbyWithError((info && info.reason) || 'You no longer hold enough tokens to play.');
+  });
 
   // ── Connection status + auto-reconnect ──
   socket.on('connect', () => {
@@ -530,6 +534,18 @@ function seedTrail() {
   }
 }
 
+// Kicked / gate lost: tear down to the lobby and surface why (no auto-rejoin).
+function sendToLobbyWithError(msg) {
+  reconnectResume = false;
+  playing = false; spectating = false; pred.active = false; specTarget.has = false;
+  $('hud').classList.add('hidden');
+  $('deathScreen').classList.add('hidden');
+  $('spectateBar').classList.add('hidden');
+  $('playerBadge').classList.add('hidden');
+  $('lobby').classList.remove('hidden');
+  $('joinError').textContent = msg || '';
+}
+
 function doRespawn() {
   socket.emit('respawn', {}, (resp) => {
     if (resp && resp.ok) {
@@ -538,6 +554,8 @@ function doRespawn() {
       spectating = false; specTarget.has = false;
       $('spectateBar').classList.add('hidden');
       startPlaying();
+    } else if (resp && resp.reason) {
+      sendToLobbyWithError(resp.reason); // e.g. no longer holding enough tokens
     }
   });
 }

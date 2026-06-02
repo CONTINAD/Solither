@@ -5,7 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 import { config, DEMO_MODE } from './config.js';
-import { verifyWallet } from './solana.js';
+import { verifyWallet, invalidateWallet } from './solana.js';
 import { Game, SIM, SKINS } from './game.js';
 import { RoundManager } from './rewards.js';
 import { recordScore, topScores } from './highscores.js';
@@ -157,9 +157,15 @@ io.on('connection', (socket) => {
     spectating.set(playerId, (data && data.targetId) || null);
   });
 
-  socket.on('respawn', (_, ack) => {
+  socket.on('respawn', async (_, ack) => {
     if (playerId == null) { ack?.({ ok: false }); return; }
     if (onCooldown('respawn', 400)) { ack?.({ ok: false }); return; }
+    // Re-check holdings on every new life — you can't keep respawning if you no longer hold.
+    const cur = game.players.get(playerId);
+    if (cur && cur.wallet) {
+      const res = await verifyWallet(cur.wallet);
+      if (!res.ok) { ack?.({ ok: false, reason: res.reason || 'You no longer hold enough tokens to play.' }); return; }
+    }
     spectating.delete(playerId);
     const np = game.respawn(playerId, undefined);
     if (!np) { ack?.({ ok: false }); return; }
@@ -230,6 +236,25 @@ setInterval(() => {
     });
   }
 }, 1000 / NET_HZ);
+
+// Continuous token-gate enforcement: periodically re-verify that each connected player
+// STILL holds enough tokens, and kick anyone who sold or transferred them away.
+// No-op in demo mode (verifyWallet always passes). Forces a fresh on-chain read.
+if (!DEMO_MODE) {
+  const RECHECK_MS = 90_000;
+  setInterval(async () => {
+    for (const [pid, sock] of socketByPlayerId) {
+      const player = game.players.get(pid);
+      if (!player || player.isBot || !player.wallet) continue;
+      invalidateWallet(player.wallet);
+      const res = await verifyWallet(player.wallet);
+      if (!res.ok) {
+        sock.emit('gateLost', { reason: res.reason || 'You no longer hold enough tokens to play.' });
+        setTimeout(() => sock.disconnect(true), 200);
+      }
+    }
+  }, RECHECK_MS);
+}
 
 function countHumans() {
   let n = 0;
