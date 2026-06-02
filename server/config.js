@@ -16,7 +16,7 @@ export const config = {
   balanceCacheSeconds: num(process.env.BALANCE_CACHE_SECONDS, 120),
 
   // Rounds
-  roundSeconds: num(process.env.ROUND_SECONDS, 300),
+  roundSeconds: num(process.env.ROUND_SECONDS, 180),
   rewardTopN: num(process.env.REWARD_TOP_N, 3),
 };
 

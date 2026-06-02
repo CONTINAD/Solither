@@ -2,7 +2,7 @@
 
 A real-time multiplayer [slither.io](https://slither.io)-style arena game, **gated by a Solana token**.
 Paste your wallet + a name, and as long as that wallet holds the required amount of the game's
-SPL token you're in. Every **5 minutes** a reward round ends and the **top 3 players** are recorded
+SPL token you're in. Every **3 minutes** a reward round ends and the **top 3 players** are recorded
 as creator-reward winners.
 
 ```
@@ -13,7 +13,7 @@ Sol  +  Slither   →   Solither
 
 - ⚡ **Server-authoritative** real-time slither game (Node + Socket.IO, 30 Hz sim).
 - 🔒 **Token gate** — verifies the pasted wallet holds ≥ 500,000 of your SPL token via Solana RPC.
-- 🏆 **5-minute reward rounds** — top 3 human players each round are snapshotted with their wallets.
+- 🏆 **3-minute reward rounds** — top 3 human players each round are snapshotted with their wallets.
 - 🤖 **Bots** keep the arena lively when player count is low.
 - 🗺️ Minimap, live leaderboard, round timer, boost, death/respawn, mobile touch controls.
 - 🎨 Solana-themed neon UI (green/purple).
@@ -39,7 +39,7 @@ Edit `.env`:
 TOKEN_MINT=YourSplTokenMintAddressHere
 MIN_TOKEN_BALANCE=500000
 SOLANA_RPC_URL=https://your-helius-or-quicknode-endpoint
-ROUND_SECONDS=300
+ROUND_SECONDS=180
 REWARD_TOP_N=3
 ```
 
@@ -72,7 +72,7 @@ server/
   index.js     Express + Socket.IO server, sim loop, broadcast loop
   game.js      Slither engine: snakes, food, bots, collisions, snapshots
   solana.js    Wallet token-balance verification (cached)
-  rewards.js   5-minute round manager + winner recording
+  rewards.js   3-minute round manager + winner recording
   config.js    Env-driven config + demo-mode detection
 public/
   index.html   Lobby, HUD, death screen
