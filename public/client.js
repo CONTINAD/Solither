@@ -1032,11 +1032,9 @@ function render(now) {
   drawFx();
 
   const remotes = interpolatedSnakes();
-  // Crown the BIGGEST snake currently on screen (you included) so a crown is always
-  // visible on the biggest guy around — not a global #1 that's usually off-screen.
-  let crownId = null, crownR = -1;
-  for (const sn of remotes) if (sn.r > crownR) { crownR = sn.r; crownId = sn.id; }
-  if (pred.active) { const pr = bodyRadius(pred.length); if (pr > crownR) { crownR = pr; crownId = myId; } }
+  // Crown ONLY the current #1 on the leaderboard (single global king). Shows when
+  // they're on your screen.
+  const crownId = leaderboardData.length ? leaderboardData[0].id : null;
 
   for (const sn of remotes) {
     if (sn.immune) ctx.globalAlpha = 0.45 + 0.25 * Math.sin(performance.now() / 120);

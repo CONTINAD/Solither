@@ -11,7 +11,7 @@ export const config = {
 
   // Token gating
   tokenMint: (process.env.TOKEN_MINT || '').trim(),
-  minTokenBalance: num(process.env.MIN_TOKEN_BALANCE, 500000),
+  minTokenBalance: num(process.env.MIN_TOKEN_BALANCE, 250000),
   rpcUrl: (process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com').trim(),
   balanceCacheSeconds: num(process.env.BALANCE_CACHE_SECONDS, 120),
 
