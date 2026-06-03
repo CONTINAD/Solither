@@ -28,10 +28,12 @@ const SEGMENT_EVERY = 5;         // render a body circle every N trail points
 // ~1400u view radius in cullFrameFor. Caps guard against pathologically huge worlds.
 const WORLD_AREA = Math.PI * WORLD.radius * WORLD.radius;
 const FOOD_TARGET = Math.min(6500, Math.round(WORLD_AREA * 1.0e-4)); // lighter field (perf) — still plenty
-// Bot count derives from world area, but BOT_TARGET env overrides it (set BOT_TARGET=0 to remove bots).
-const BOT_TARGET = process.env.BOT_TARGET != null
-  ? Math.max(0, Math.floor(Number(process.env.BOT_TARGET)) || 0)
-  : Math.min(40, Math.round(WORLD_AREA * 5.2e-7));               // ~26 @ r=4000 by default
+// Ambient filler bots so the arena always has a few real-looking players (great for an
+// AFK livestream). Default 5. A POSITIVE BOT_TARGET env overrides the count (capped at 40);
+// the old stale BOT_TARGET=0 is treated as "use the default 5", not "no bots".
+const BOT_TARGET = (process.env.BOT_TARGET != null && Number(process.env.BOT_TARGET) > 0)
+  ? Math.min(40, Math.floor(Number(process.env.BOT_TARGET)))
+  : 5;
 // Chunky +5 orbs: worth seeking out, but kept sparse so they stay a treat (not a carpet).
 const ORB_VALUE = 5;
 const ORB_TARGET = Math.min(24, Math.round(WORLD_AREA * 3.5e-7));    // ~18   @ r=4000 → a couple in view
