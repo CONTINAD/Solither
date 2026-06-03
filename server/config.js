@@ -1,5 +1,13 @@
 import dotenv from 'dotenv';
+import { PublicKey } from '@solana/web3.js';
 dotenv.config();
+
+// A mint only counts if it's a real Solana address — so a blank/placeholder/typo
+// TOKEN_MINT safely stays in demo mode instead of locking everyone out.
+function isValidMint(m) {
+  if (!m) return false;
+  try { new PublicKey(m); return true; } catch { return false; }
+}
 
 const num = (v, fallback) => {
   const n = Number(v);
@@ -29,7 +37,9 @@ export const config = {
   rewardPoolSol: num(process.env.ROUND_REWARD_SOL, 0.25),
 };
 
-// Demo mode = no real token configured, so the wallet gate is bypassed.
+// Auto-detect: only a VALID mint activates the gate. Anything else → demo (CA hidden,
+// no gate), so setting TOKEN_MINT to a real address is all it takes to flip everything on.
+if (!isValidMint(config.tokenMint)) config.tokenMint = '';
 export const DEMO_MODE = config.tokenMint.length === 0;
 
 if (DEMO_MODE) {
