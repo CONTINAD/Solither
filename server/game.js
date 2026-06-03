@@ -27,7 +27,7 @@ const SEGMENT_EVERY = 5;         // render a body circle every N trail points
 // silently make it feel empty (sparse food, no snakes in view) again. Tuned against the
 // ~1400u view radius in cullFrameFor. Caps guard against pathologically huge worlds.
 const WORLD_AREA = Math.PI * WORLD.radius * WORLD.radius;
-const FOOD_TARGET = Math.min(9000, Math.round(WORLD_AREA * 1.5e-4)); // ~7500 @ r=4000 — dense, plenty to eat
+const FOOD_TARGET = Math.min(6500, Math.round(WORLD_AREA * 1.0e-4)); // lighter field (perf) — still plenty
 // Bot count derives from world area, but BOT_TARGET env overrides it (set BOT_TARGET=0 to remove bots).
 const BOT_TARGET = process.env.BOT_TARGET != null
   ? Math.max(0, Math.floor(Number(process.env.BOT_TARGET)) || 0)
@@ -535,9 +535,10 @@ export class Game {
   // Cheap per-viewer cull: filter the shared frame around (cx, cy). Reuses snake
   // wire objects (no rebuild) and only scans food cells overlapping the viewport.
   cullFrameFor(frame, cx, cy) {
-    const view = 1400;
-    const view2 = view * view;
+    const view = 1400;                 // snakes: wider so they don't pop in at the edge
     const cullR2 = (view + 600) * (view + 600);
+    const foodView = 1050;             // food only needs to cover the screen — much lighter payload
+    const foodView2 = foodView * foodView;
 
     const snakes = [];
     for (const s of frame.snakes) {
@@ -547,15 +548,15 @@ export class Game {
 
     const food = [];
     const C = frame.fcell;
-    const minx = Math.floor((cx - view) / C), maxx = Math.floor((cx + view) / C);
-    const miny = Math.floor((cy - view) / C), maxy = Math.floor((cy + view) / C);
+    const minx = Math.floor((cx - foodView) / C), maxx = Math.floor((cx + foodView) / C);
+    const miny = Math.floor((cy - foodView) / C), maxy = Math.floor((cy + foodView) / C);
     for (let gx = minx; gx <= maxx; gx++) {
       for (let gy = miny; gy <= maxy; gy++) {
         const arr = frame.foodGrid.get(gx + ',' + gy);
         if (!arr) continue;
         for (const f of arr) {
           const dx = f.x - cx, dy = f.y - cy;
-          if (dx * dx + dy * dy <= view2) food.push([Math.round(f.x), Math.round(f.y), f.r, f.color]);
+          if (dx * dx + dy * dy <= foodView2) food.push([Math.round(f.x), Math.round(f.y), f.r, f.color]);
         }
       }
     }

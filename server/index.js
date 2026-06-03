@@ -220,7 +220,7 @@ setInterval(() => {
 }, TICK_MS);
 
 // ── Network broadcast loop (lower rate than sim to save bandwidth) ──
-const NET_HZ = 18;
+const NET_HZ = 15;
 setInterval(() => {
   const lb = game.leaderboard(10);
   const roundStatus = rounds.status();
