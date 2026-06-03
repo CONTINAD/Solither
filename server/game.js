@@ -33,7 +33,7 @@ const FOOD_TARGET = Math.min(6500, Math.round(WORLD_AREA * 1.0e-4)); // lighter 
 // the old stale BOT_TARGET=0 is treated as "use the default 5", not "no bots".
 const BOT_TARGET = (process.env.BOT_TARGET != null && Number(process.env.BOT_TARGET) > 0)
   ? Math.min(40, Math.floor(Number(process.env.BOT_TARGET)))
-  : 5;
+  : 10;
 // Chunky +5 orbs: worth seeking out, but kept sparse so they stay a treat (not a carpet).
 const ORB_VALUE = 5;
 const ORB_TARGET = Math.min(24, Math.round(WORLD_AREA * 3.5e-7));    // ~18   @ r=4000 → a couple in view
@@ -44,6 +44,18 @@ const COIL_RADIUS = 130;         // only a TIGHT knit circle (head staying this 
 const COIL_GRACE_TICKS = 150;    // …for this long (~5s @30Hz) counts as coiling/camping
 const COIL_DRAIN_EVERY = 6;      // then lose 1 length/score every this many ticks until you move out
 const SPAWN_IMMUNITY_MS = 3000;  // brief collision immunity on spawn / respawn / arena reset
+
+// ── Chaos Mode power-ups ─────────────────────────────────────
+// Floating pickups that only spawn during Chaos Mode. Eating one grants a timed effect.
+// Order is the wire index (client maps index → look). Keep in sync with the client.
+const POWERUP_TYPES = ['speed', 'shield', 'magnet', 'multi', 'phase', 'ghost'];
+const POWERUP_DUR = {            // effect duration (ms); shield lasts until consumed or this
+  speed: 8000, shield: 14000, magnet: 9000, multi: 10000, phase: 7000, ghost: 6000,
+};
+const PU_SPEED_MULT = 1.55;      // speed power-up multiplier
+const PU_MAGNET_R = 200;         // magnet auto-eat radius
+const CHAOS_PU_TARGET = 26;      // how many pickups to keep on the map during Chaos
+const CHAOS_PU_SPAWN_EVERY = 8;  // trickle a new one in every N ticks until at target
 
 let nextId = 1;
 // Snake skin palette — also exposed to the client via /api/config so the
@@ -120,6 +132,8 @@ export class Game {
     this.onDeath = null; // optional callback(player)
     this.playRadius = WORLD.radius; // shrinks during a Death Match; otherwise full
     this.deathMatch = false;        // true while a Death Match is running
+    this.chaosMode = false;         // true while Chaos Mode is running
+    this.powerups = [];             // [{ x, y, type, r }] — only present during Chaos
   }
 
   /** Alive non-bot players (used for Death Match win detection). */
@@ -127,6 +141,22 @@ export class Game {
     const out = [];
     for (const p of this.players.values()) if (p.alive && !p.isBot) out.push(p);
     return out;
+  }
+
+  // Spawn one Chaos Mode power-up of a random type at a random spot (away from the edge).
+  spawnPowerup() {
+    const a = rand(0, Math.PI * 2);
+    const r = Math.sqrt(Math.random()) * (this.playRadius * 0.9);
+    const type = POWERUP_TYPES[Math.floor(Math.random() * POWERUP_TYPES.length)];
+    this.powerups.push({ x: Math.cos(a) * r, y: Math.sin(a) * r, type, r: 14 });
+  }
+
+  // Tear down Chaos Mode: drop all pickups and clear everyone's active effects.
+  clearChaos() {
+    this.powerups = [];
+    for (const p of this.players.values()) {
+      if (p.fx) p.fx = { speed: 0, shield: 0, magnet: 0, multi: 0, phase: 0, ghost: 0 };
+    }
   }
 
   spawnFood(x, y, value = 1, color = null, orb = false) {
@@ -208,6 +238,8 @@ export class Game {
       coilAnchor: { x, y },
       coilTicks: 0,
       coiling: false,
+      // Chaos Mode power-up effects — each value is an expiry timestamp (0 = inactive).
+      fx: { speed: 0, shield: 0, magnet: 0, multi: 0, phase: 0, ghost: 0 },
       // bot ai memory
       _wander: angle,
       _aggro: Math.random(), // 0..1 — only >0.5 bots actively hunt (keeps bots beatable)
@@ -251,6 +283,11 @@ export class Game {
       let orbs = 0;
       for (const f of this.food) if (f.orb) orbs++;
       if (orbs < ORB_TARGET) this.food.push(this.spawnFood(undefined, undefined, ORB_VALUE, null, true));
+    }
+
+    // Chaos Mode: keep the map sprinkled with power-up pickups (trickle toward the target).
+    if (this.chaosMode && this.tick % CHAOS_PU_SPAWN_EVERY === 0 && this.powerups.length < CHAOS_PU_TARGET) {
+      this.spawnPowerup();
     }
 
     // Mark the current top 3 (by score) so movePlayer can slow them down a touch.
@@ -335,6 +372,9 @@ export class Game {
       speed *= (1 - penalty);
     }
 
+    // Chaos Mode: the speed power-up makes you noticeably faster.
+    if (p.fx && p.fx.speed > Date.now()) speed *= PU_SPEED_MULT;
+
     const nx = p.x + Math.cos(p.angle) * speed;
     const ny = p.y + Math.sin(p.angle) * speed;
     // Lethal boundary = the current play radius (shrinks during a Death Match; full otherwise).
@@ -352,20 +392,41 @@ export class Game {
   }
 
   handleFood() {
+    const now = Date.now();
     for (const p of this.players.values()) {
       if (!p.alive) continue;
-      const eatR = this.bodyRadius(p) + 10;
+      // Chaos magnet power-up vacuums food from a wide radius; otherwise normal mouth size.
+      const magnet = p.fx && p.fx.magnet > now;
+      const eatR = magnet ? PU_MAGNET_R : this.bodyRadius(p) + 10;
       const eatR2 = eatR * eatR;
+      const mult = (p.fx && p.fx.multi > now) ? 2 : 1; // multi power-up = 2x gains
       for (let i = this.food.length - 1; i >= 0; i--) {
         const f = this.food[i];
         if (dist2(p.x, p.y, f.x, f.y) <= eatR2) {
-          p.length += f.value;
-          p.score += f.value;
+          p.length += f.value * mult;
+          p.score += f.value * mult;
           if (p.length > p.peakLength) p.peakLength = p.length;
           this.food.splice(i, 1);
         }
       }
+      // Chaos Mode pickups → grant the timed effect.
+      if (this.powerups.length) {
+        const grabR = (magnet ? PU_MAGNET_R : this.bodyRadius(p) + 16);
+        const grabR2 = grabR * grabR;
+        for (let i = this.powerups.length - 1; i >= 0; i--) {
+          const pu = this.powerups[i];
+          if (dist2(p.x, p.y, pu.x, pu.y) <= grabR2) {
+            this.grantPowerup(p, pu.type, now);
+            this.powerups.splice(i, 1);
+          }
+        }
+      }
     }
+  }
+
+  grantPowerup(p, type, now = Date.now()) {
+    if (!p.fx || !POWERUP_DUR[type]) return;
+    p.fx[type] = now + POWERUP_DUR[type]; // (re-grabbing refreshes the timer)
   }
 
   // Returns body sample points for a player (used for collision + render).
@@ -407,6 +468,7 @@ export class Game {
 
     for (const p of alive) {
       if (now < (p.immuneUntil || 0)) continue; // immune snakes can't die
+      if (p.fx && p.fx.phase > now) continue;    // Chaos phase: pass straight through snakes
       const headR = this.bodyRadius(p);
       const cx = Math.floor(p.x / CELL);
       const cy = Math.floor(p.y / CELL);
@@ -419,7 +481,13 @@ export class Game {
             if (s.owner === p.id) continue; // no self-collision
             const hitDist = headR + s.r;
             if (segPointDist2(p.x, p.y, s.ax, s.ay, s.bx, s.by) <= hitDist * hitDist) {
-              this.kill(p, 'collision', this.players.get(s.owner));
+              // Chaos shield: pop the bubble and survive this one hit (brief grace after).
+              if (p.fx && p.fx.shield > now) {
+                p.fx.shield = 0;
+                p.immuneUntil = now + 1200;
+              } else {
+                this.kill(p, 'collision', this.players.get(s.owner));
+              }
               dead = true;
               break;
             }
@@ -610,12 +678,25 @@ export class Game {
   // This replaces the old O(viewers × snakes × segments) per-player snapshot with
   // O(snakes × segments) once + O(viewers × nearby) culling — the key to scaling players.
   buildFrame() {
+    const now = Date.now();
     const snakes = [];
     for (const p of this.players.values()) {
       if (!p.alive) continue;
       const segs = [];
       const samples = this.bodySamples(p);
       for (const s of samples) segs.push([Math.round(s.x), Math.round(s.y)]);
+      // Active Chaos power-up effects → compact codes the client renders.
+      let fx = null, ghost = false;
+      if (p.fx) {
+        const arr = [];
+        if (p.fx.speed > now) arr.push('sp');
+        if (p.fx.shield > now) arr.push('sh');
+        if (p.fx.magnet > now) arr.push('mg');
+        if (p.fx.multi > now) arr.push('mu');
+        if (p.fx.phase > now) arr.push('ph');
+        if (p.fx.ghost > now) { arr.push('gh'); ghost = true; }
+        if (arr.length) fx = arr;
+      }
       snakes.push({
         id: p.id,
         name: p.name,
@@ -626,9 +707,11 @@ export class Game {
         x: Math.round(p.x),
         y: Math.round(p.y),
         a: Number(p.angle.toFixed(2)),
-        immune: Date.now() < (p.immuneUntil || 0),
+        immune: now < (p.immuneUntil || 0),
         segs,
         ...(p.skin ? { sk: p.skin } : {}),
+        ...(fx ? { fx } : {}),
+        ...(ghost ? { gh: 1 } : {}), // ghost = hidden from others (filtered per-viewer below)
       });
     }
 
@@ -640,12 +723,12 @@ export class Game {
       if (!arr) foodGrid.set(k, (arr = []));
       arr.push(f);
     }
-    return { snakes, foodGrid, fcell: FCELL };
+    return { snakes, foodGrid, fcell: FCELL, powerups: this.powerups };
   }
 
   // Cheap per-viewer cull: filter the shared frame around (cx, cy). Reuses snake
   // wire objects (no rebuild) and only scans food cells overlapping the viewport.
-  cullFrameFor(frame, cx, cy) {
+  cullFrameFor(frame, cx, cy, viewerId = null) {
     const view = 1400;                 // snakes: wider so they don't pop in at the edge
     const cullR2 = (view + 600) * (view + 600);
     const foodView = 1050;             // food only needs to cover the screen — much lighter payload
@@ -653,6 +736,8 @@ export class Game {
 
     const snakes = [];
     for (const s of frame.snakes) {
+      // Chaos ghost power-up: invisible to everyone except the ghost themselves.
+      if (s.gh && s.id !== viewerId) continue;
       const dx = s.x - cx, dy = s.y - cy;
       if (dx * dx + dy * dy <= cullR2) snakes.push(s);
     }
@@ -671,7 +756,22 @@ export class Game {
         }
       }
     }
-    return { snakes, food, world: { radius: Math.round(this.playRadius) } };
+    // Chaos power-ups near the viewport → compact [x, y, typeIndex].
+    let powerups;
+    if (frame.powerups && frame.powerups.length) {
+      powerups = [];
+      for (const pu of frame.powerups) {
+        const dx = pu.x - cx, dy = pu.y - cy;
+        if (dx * dx + dy * dy <= foodView2) {
+          powerups.push([Math.round(pu.x), Math.round(pu.y), POWERUP_TYPES.indexOf(pu.type)]);
+        }
+      }
+    }
+    return {
+      snakes, food,
+      ...(powerups && powerups.length ? { powerups } : {}),
+      world: { radius: Math.round(this.playRadius) },
+    };
   }
 
   // 1-based rank of a player by score among everyone currently in the game.

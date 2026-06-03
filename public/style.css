@@ -127,6 +127,51 @@ canvas#game {
   50% { background: rgba(255, 77, 109, 0.5); box-shadow: 0 0 24px rgba(255, 77, 109, 0.7); }
 }
 
+/* Chaos Mode: cyan→purple flashing badge + pill */
+#chaosLiveBadge {
+  position: fixed; top: 70px; left: 50%; transform: translateX(-50%);
+  z-index: 30; pointer-events: none; white-space: nowrap;
+  padding: 9px 24px; border-radius: 16px;
+  font-weight: 700; font-size: 17px; letter-spacing: 1.2px;
+  border: 1.5px solid rgba(72, 201, 240, 0.6);
+  animation: chaosBadgeFlash 0.85s ease-in-out infinite;
+}
+#chaosLiveBadge .dm-sep { opacity: 0.7; margin: 0 6px; }
+@keyframes chaosBadgeFlash {
+  0%, 100% { background: rgba(0, 209, 255, 0.14); border-color: rgba(72, 201, 240, 0.5);
+    box-shadow: 0 0 14px rgba(0, 209, 255, 0.35); color: #bff0ff; }
+  50% { background: rgba(153, 69, 255, 0.45); border-color: #C9A0FF;
+    box-shadow: 0 0 32px rgba(153, 69, 255, 0.7); color: #fff; }
+}
+#roundPill.chaos {
+  animation: chaosPillFlash 0.85s ease-in-out infinite;
+  border-color: rgba(72, 201, 240, 0.7) !important;
+}
+@keyframes chaosPillFlash {
+  0%, 100% { background: rgba(0, 209, 255, 0.16); box-shadow: 0 0 10px rgba(0, 209, 255, 0.3); }
+  50% { background: rgba(153, 69, 255, 0.5); box-shadow: 0 0 24px rgba(153, 69, 255, 0.7); }
+}
+@media (max-width: 640px) {
+  #chaosLiveBadge { font-size: 12px; padding: 7px 14px; top: 62px; }
+}
+
+/* Active power-up chips (local player) */
+#fxBar {
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: 92px;
+  z-index: 28; pointer-events: none; display: flex; gap: 8px;
+}
+.fx-chip {
+  width: 40px; height: 40px; border-radius: 11px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; font-weight: 700; color: #fff;
+  background: rgba(10, 8, 18, 0.7);
+  border: 2px solid var(--c, #fff);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--c, #fff) 55%, transparent);
+  animation: fxChipPulse 1s ease-in-out infinite;
+}
+@keyframes fxChipPulse { 50% { transform: scale(1.08); } }
+@media (max-width: 640px) { #fxBar { bottom: 120px; } .fx-chip { width: 34px; height: 34px; font-size: 16px; } }
+
 @media (max-width: 640px) {
   #dmLiveBadge { font-size: 12px; padding: 7px 14px; top: 62px; }
 }

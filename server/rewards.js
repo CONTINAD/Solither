@@ -31,6 +31,15 @@ const DM_MAX_MS      = Number(process.env.DM_MAX_MS)     || 210000;  // hard cap
 const DM_MIN_PLAYERS = Number(process.env.DM_MIN_PLAYERS)|| 2;       // need this many alive to run
 const DM_WINNER_PCT  = Number(process.env.DM_WINNER_PCT) || 0.9;     // winner takes this share of claimed fees
 
+// ── Chaos Mode (power-up free-for-all) ───────────────────────
+// Fires on every :15/:45 slot (at the next round boundary), alternating with the Death
+// Matches at :00/:30. Power-ups spawn everywhere (speed/shield/magnet/multi/phase/ghost),
+// no eliminations or payout — pure fun. Resets to a clean arena when it ends so the normal
+// reward rounds stay fair. Offset by 15 min so it never collides with a Death Match.
+const CHAOS_SLOT_MS = 30 * 60 * 1000;                                // 30-min cadence…
+const CHAOS_OFFSET_MS = 15 * 60 * 1000;                              // …shifted to land on :15 / :45
+const CHAOS_MS = Number(process.env.CHAOS_MS) || 120000;             // how long Chaos runs (~2 min)
+
 // ─────────────────────────────────────────────────────────────
 // Reward rounds: every ROUND_SECONDS, snapshot the top N *human*
 // players and record them as that round's reward winners.
@@ -62,6 +71,11 @@ export class RoundManager {
     this.dmCountdownUntil = 0; // during the pre-match "get ready" countdown, this is in the future
     this._dmSlot = Math.floor(Date.now() / DM_INTERVAL_MS); // current :00/:30 slot
     this._dmLeaderId = null; // top alive during the DM (winner fallback)
+    // Chaos Mode state (fires at :15/:45, alternating with the Death Matches)
+    this.chaosActive = false;
+    this.chaosPending = false;
+    this.chaosUntil = 0;
+    this._chaosSlot = Math.floor((Date.now() - CHAOS_OFFSET_MS) / CHAOS_SLOT_MS); // current :15/:45 slot
     this._load(); // resume round number + recent history across restarts
   }
 
@@ -101,6 +115,7 @@ export class RoundManager {
       roundLength: this.roundLength,
       topN: this.topN,
       deathMatch: this.dmActive,
+      chaos: this.chaosActive,
       lastWinners: this.history.length ? this.history[this.history.length - 1].winners : [],
     };
   }
@@ -108,12 +123,17 @@ export class RoundManager {
   tick() {
     const now = Date.now();
 
-    // A Death Match takes over the loop entirely while it runs.
+    // A special mode takes over the loop entirely while it runs.
     if (this.dmActive) { this._tickDeathMatch(now); return; }
+    if (this.chaosActive) { this._tickChaos(now); return; }
 
     // Cross a :00/:30 slot boundary → queue a Death Match for the next round boundary.
     const slot = Math.floor(now / DM_INTERVAL_MS);
     if (slot !== this._dmSlot) { this._dmSlot = slot; this.dmPending = true; }
+
+    // Cross a :15/:45 slot boundary → queue Chaos Mode for the next round boundary.
+    const cslot = Math.floor((now - CHAOS_OFFSET_MS) / CHAOS_SLOT_MS);
+    if (cslot !== this._chaosSlot) { this._chaosSlot = cslot; this.chaosPending = true; }
 
     const msLeft = this.roundEndsAt - now;
     // ~10s before the end, START the creator-fee claim. Keep the PROMISE so endRound
@@ -215,6 +235,14 @@ export class RoundManager {
       console.log('[Solither] Death Match skipped — not enough players.');
     }
 
+    // Chaos Mode is queued (we crossed a :15/:45 mark): run it instead of a normal round.
+    // (DM takes priority above, but they're 15 min apart so they never both pend.)
+    if (this.chaosPending) {
+      this.chaosPending = false;
+      this.startChaos();
+      return;
+    }
+
     // Every 3rd round: full arena wipe — fresh food, fresh bots, every snake reset.
     if (this.roundNumber % 3 === 0) {
       this.game.resetArena();
@@ -304,6 +332,41 @@ export class RoundManager {
     this.game.deathMatch = false;
     this.game.playRadius = WORLD.radius;
     this.dmActive = false;
+    this._claimStarted = false;
+    this._claimPromise = null;
+    this.game.resetArena();
+    this.roundNumber += 1;
+    this.roundEndsAt = Date.now() + this.roundLength;
+    this._save();
+    this.io.emit('roundStarted', this.status());
+  }
+
+  // ── Chaos Mode ─────────────────────────────────────────────
+  startChaos() {
+    this.chaosActive = true;
+    this.chaosUntil = Date.now() + CHAOS_MS;
+    this.game.chaosMode = true;       // step() starts trickling power-ups in
+    this.game.powerups = [];          // fresh field of pickups
+    // No arena reset and no payout — players keep their snakes and just grab power-ups.
+    this.io.emit('chaosStart', { durationMs: CHAOS_MS });
+    console.log(`[Solither] 🌀  CHAOS MODE — power-ups everywhere for ${Math.round(CHAOS_MS / 1000)}s.`);
+  }
+
+  _tickChaos(now) {
+    if (now >= this.chaosUntil && !this._ending) {
+      this._ending = true;
+      try { this.endChaos(); } finally { this._ending = false; }
+    }
+  }
+
+  endChaos() {
+    this.game.chaosMode = false;
+    this.game.clearChaos();           // drop pickups + clear everyone's active effects
+    this.chaosActive = false;
+    this.io.emit('chaosEnd', {});
+    console.log('[Solither] 🌀  CHAOS MODE over — back to the regular game.');
+
+    // Fresh, fair start for the normal reward rounds (so Chaos gains don't carry over).
     this._claimStarted = false;
     this._claimPromise = null;
     this.game.resetArena();

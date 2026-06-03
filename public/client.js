@@ -134,6 +134,8 @@ const NET_HZ = 22;
 const INTERP_DELAY = 95; // ms behind realtime for smooth remote motion
 const buffer = [];       // [{ t, byId:Map, food }]
 let latestFood = [];
+let latestPowerups = []; // [[x,y,typeIndex],…] Chaos Mode pickups near the viewport
+let myFx = [];           // my own active power-up effect codes (sp/sh/mg/mu/ph/gh)
 let latestBlips = [];    // [[x,y],…] every alive snake in the world — for a full minimap
 let leaderboardData = [];
 let onlineCount = 0;
@@ -171,6 +173,17 @@ const cam = { x: 0, y: 0, init: false };
 let spectating = false;
 let freeWatching = false; // watching without being a player (no tokens needed)
 let dmActive = false;     // a Death Match is currently running
+let chaosActive = false;  // Chaos Mode (power-ups) is currently running
+// Power-up definitions — index order MUST match the server's POWERUP_TYPES.
+const POWERUP_DEFS = [
+  { key: 'speed',  code: 'sp', color: '#00D1FF', icon: '⚡' },
+  { key: 'shield', code: 'sh', color: '#4CC9F0', icon: '🛡️' },
+  { key: 'magnet', code: 'mg', color: '#F72585', icon: '🧲' },
+  { key: 'multi',  code: 'mu', color: '#FFD166', icon: '✖2' },
+  { key: 'phase',  code: 'ph', color: '#9945FF', icon: '🌀' },
+  { key: 'ghost',  code: 'gh', color: '#C9C9DA', icon: '👻' },
+];
+const FX_BY_CODE = Object.fromEntries(POWERUP_DEFS.map((d) => [d.code, d]));
 const specTarget = { x: 0, y: 0, has: false, id: null };
 
 // ── Load public config ───────────────────────────────────────
@@ -468,6 +481,11 @@ function wireSocket() {
     buffer.push({ t: performance.now(), byId, food: s.food || [] });
     while (buffer.length > 14) buffer.shift();
     latestFood = s.food || latestFood;
+    latestPowerups = s.powerups || [];
+    // My own active power-up effects (own snake is at the view center, not buffered).
+    if (s.snakes) { const mine = s.snakes.find((sn) => sn.id === myId); myFx = (mine && mine.fx) || []; }
+    else myFx = [];
+    renderFxBar();
     if (s.blips) latestBlips = s.blips;
 
     // Spectate target (sent only while we're spectating the leader).
@@ -616,6 +634,20 @@ function wireSocket() {
     fetchRewards();
   });
 
+  // ── Chaos Mode ──
+  socket.on('chaosStart', () => {
+    chaosActive = true;
+    SFX.roundWin(); // upbeat sting (distinct from the DM klaxon)
+    flashDeathMatch();
+    showDmBanner('🌀 CHAOS MODE', 'Grab the power-ups — speed, shield, magnet, ×2, phase, ghost. Go nuts!', 6000);
+    if (playing || spectating) showToast('🌀 CHAOS MODE — power-ups everywhere! No payout, just mayhem.');
+  });
+  socket.on('chaosEnd', () => {
+    chaosActive = false;
+    latestPowerups = []; myFx = []; renderFxBar();
+    showDmBanner('Chaos over', 'Back to the regular game — fresh start!', 3500);
+  });
+
   // ── Connection status + auto-reconnect ──
   socket.on('connect', () => {
     setConn(true);
@@ -755,28 +787,42 @@ let lastTickSec = -1;
 function updateRoundUI(round) {
   if (!round) return;
   dmActive = !!round.deathMatch;
+  chaosActive = !!round.chaos;
+  const inGame = !$('hud').classList.contains('hidden');
   if (dmActive) {
     // During a Death Match the round pill shows the mode, not a countdown.
     $('roundTimer').textContent = '☠️ LAST SNAKE';
     $('roundPill').classList.add('urgent', 'dm');
+    $('roundPill').classList.remove('chaos');
     // Keep the red danger vignette glowing + a big flashing DEATH MATCH badge up for the
     // WHOLE match (vignette is auto-pulsed in the rAF loop), so it's unmistakable.
-    const inGame = !$('hud').classList.contains('hidden');
     const vig = $('urgentVignette');
     if (vig) vig.classList.toggle('hidden', !inGame);
     $('dmLiveBadge').classList.toggle('hidden', !inGame);
+    $('chaosLiveBadge').classList.add('hidden');
     return;
   }
-  // Not a Death Match — make sure its indicators are cleared.
-  $('roundPill').classList.remove('dm');
+  if (chaosActive) {
+    // Chaos Mode: flashing badge + pill the whole time so it's clearly a special mode.
+    $('roundTimer').textContent = '🌀 CHAOS';
+    $('roundPill').classList.add('urgent', 'chaos');
+    $('roundPill').classList.remove('dm');
+    $('chaosLiveBadge').classList.toggle('hidden', !inGame);
+    $('dmLiveBadge').classList.add('hidden');
+    const vig = $('urgentVignette');
+    if (vig) vig.classList.add('hidden'); // chaos isn't lethal-edge danger — no red vignette
+    return;
+  }
+  // Not a special mode — clear all mode indicators.
+  $('roundPill').classList.remove('dm', 'chaos');
   $('dmLiveBadge').classList.add('hidden');
+  $('chaosLiveBadge').classList.add('hidden');
   const sec = Math.ceil(round.msRemaining / 1000);
   const m = Math.floor(sec / 60), s = sec % 60;
   $('roundTimer').textContent = `${m}:${String(s).padStart(2, '0')}`;
   $('roundPill').classList.toggle('urgent', sec <= 15);
 
   // Urgency cue (in-game only): edge pulse in the last 10s, tick the last 5s.
-  const inGame = !$('hud').classList.contains('hidden');
   const vig = $('urgentVignette');
   if (vig) vig.classList.toggle('hidden', !(inGame && sec <= 10 && sec > 0));
   if (inGame && sec <= 5 && sec >= 1 && sec !== lastTickSec) SFX.tick();
@@ -1206,7 +1252,7 @@ function interpolatedSnakes() {
     for (let i = n; i < b.segs.length; i++) segs.push(b.segs[i]);
     out.push({
       id, name: b.name, color: b.color, r: b.r, score: b.score, boosting: b.boosting,
-      immune: b.immune, sk: b.sk,
+      immune: b.immune, sk: b.sk, fx: b.fx,
       x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f,
       a: angLerp(a.a, b.a, f), segs,
     });
@@ -1266,6 +1312,7 @@ function render(now) {
   drawGrid(W, H);
   drawWorldEdge();
   drawFood();
+  drawPowerups();
   drawFx();
 
   const remotes = interpolatedSnakes();
@@ -1274,17 +1321,23 @@ function render(now) {
   const crownId = leaderboardData.length ? leaderboardData[0].id : null;
 
   for (const sn of remotes) {
+    const ghosted = sn.fx && sn.fx.indexOf('gh') !== -1; // (others are normally culled when ghost)
     if (sn.immune) ctx.globalAlpha = 0.45 + 0.25 * Math.sin(performance.now() / 120);
+    else if (ghosted) ctx.globalAlpha = 0.3;
     drawSnake(sn.segs, sn.x, sn.y, sn.a, sn.r, sn.color, sn.name, sn.boosting, sn.sk);
     ctx.globalAlpha = 1;
     if (sn.immune) drawShield(sn.x, sn.y, sn.r);
+    drawSnakeFx(sn.x, sn.y, sn.r, sn.fx);
     if (sn.id === crownId) drawCrown(sn.x, sn.y, sn.r);
   }
   if (pred.active) {
+    const myGhost = myFx.indexOf('gh') !== -1;
     if (pred.immune) ctx.globalAlpha = 0.5 + 0.25 * Math.sin(performance.now() / 120);
+    else if (myGhost) ctx.globalAlpha = 0.4; // ghosted: you see yourself faded (others can't see you)
     drawSnake(pred.trail.map((p) => [p.x, p.y]), pred.x, pred.y, pred.a, bodyRadius(pred.length), pred.color, pred.name, isBoosting, pred.skin);
     ctx.globalAlpha = 1;
     if (pred.immune) drawShield(pred.x, pred.y, bodyRadius(pred.length));
+    drawSnakeFx(pred.x, pred.y, bodyRadius(pred.length), myFx);
     if (myId === crownId) drawCrown(pred.x, pred.y, bodyRadius(pred.length));
     // Head flash on eat.
     if (performance.now() < headFlashUntil) {
@@ -1413,6 +1466,65 @@ function drawFood() {
       ctx.globalAlpha = 1;
     }
   }
+}
+
+// Chaos Mode power-up pickups: glowing colored orbs with an icon.
+function drawPowerups() {
+  if (!latestPowerups.length) return;
+  const t = performance.now();
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (const pu of latestPowerups) {
+    const x = pu[0], y = pu[1], def = POWERUP_DEFS[pu[2]] || POWERUP_DEFS[0];
+    const pulse = 1 + Math.sin(t / 200 + x * 0.01) * 0.14;
+    ctx.globalAlpha = 0.22; ctx.fillStyle = def.color;
+    ctx.beginPath(); ctx.arc(x, y, 24 * pulse, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = def.color;
+    ctx.beginPath(); ctx.arc(x, y, 13, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(x, y, 13, 0, Math.PI * 2); ctx.stroke();
+    ctx.font = '13px "Segoe UI Emoji","Apple Color Emoji",sans-serif';
+    ctx.fillStyle = '#0a0a14';
+    ctx.fillText(def.icon, x, y + 1);
+  }
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+}
+
+// Active power-up auras drawn over a snake (shield bubble, phase ring, speed glow, magnet field).
+function drawSnakeFx(x, y, r, fx) {
+  if (!fx || !fx.length) return;
+  const t = performance.now();
+  if (fx.indexOf('mg') !== -1) { // magnet field (large, faint)
+    ctx.save(); ctx.globalAlpha = 0.10; ctx.fillStyle = '#F72585';
+    ctx.beginPath(); ctx.arc(x, y, 200, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+  }
+  if (fx.indexOf('sp') !== -1) { // speed glow ring
+    ctx.save(); ctx.strokeStyle = 'rgba(0,209,255,0.55)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(x, y, r * 1.35, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+  }
+  if (fx.indexOf('ph') !== -1) { // phase: dashed purple ring
+    ctx.save(); ctx.strokeStyle = 'rgba(153,69,255,0.75)'; ctx.lineWidth = 2.5;
+    ctx.setLineDash([7, 7]); ctx.lineDashOffset = -t / 30;
+    ctx.beginPath(); ctx.arc(x, y, r * 1.7, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+  }
+  if (fx.indexOf('sh') !== -1) { // shield bubble
+    const pulse = 1.55 + Math.sin(t / 110) * 0.15;
+    ctx.save(); ctx.strokeStyle = 'rgba(120,200,255,0.95)'; ctx.lineWidth = 3;
+    ctx.shadowColor = '#4CC9F0'; ctx.shadowBlur = 14;
+    ctx.beginPath(); ctx.arc(x, y, r * pulse, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+  }
+}
+
+// HUD strip of the local player's active power-ups.
+function renderFxBar() {
+  const bar = $('fxBar');
+  if (!bar) return;
+  if (!myFx.length || !playing) { bar.classList.add('hidden'); bar.innerHTML = ''; return; }
+  bar.classList.remove('hidden');
+  bar.innerHTML = myFx.map((code) => {
+    const d = FX_BY_CODE[code];
+    return d ? `<span class="fx-chip" style="--c:${d.color}">${d.icon}</span>` : '';
+  }).join('');
 }
 
 // One stroked tube + one inner highlight + head + eyes + name.

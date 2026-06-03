@@ -83,6 +83,11 @@
 
     <!-- Persistent flashing banner so it's obvious a Death Match is running -->
     <div id="dmLiveBadge" class="hidden">☠️ DEATH MATCH <span class="dm-sep">·</span> LAST SNAKE WINS IT ALL</div>
+    <!-- Persistent flashing banner for Chaos Mode -->
+    <div id="chaosLiveBadge" class="hidden">🌀 CHAOS MODE <span class="dm-sep">·</span> GRAB THE POWER-UPS</div>
+
+    <!-- Local player's active power-ups -->
+    <div id="fxBar" class="hidden"></div>
 
     <div id="toast"></div>
   </div>
@@ -101,6 +106,8 @@
       <div class="exp-item"><span class="exp-ic">🧱</span><div><b>The edge is lethal</b><p>The glowing red boundary kills on contact — don't let anyone corner you into it.</p></div></div>
       <div class="exp-item"><span class="exp-ic">🛡️</span><div><b>Spawn shield</b><p>You're briefly invincible (cyan ring) right after spawning, so you won't get instantly killed in a crowd.</p></div></div>
       <div class="exp-item"><span class="exp-ic">👑</span><div><b>Crown &amp; resets</b><p>The biggest snake on screen wears a 👑. The whole arena wipes clean for a fresh competition every 3 rounds.</p></div></div>
+      <div class="exp-item"><span class="exp-ic">☠️</span><div><b>Death Match</b><p>Top &amp; bottom of every hour (<b>:00</b> &amp; <b>:30</b>): a shrinking-ring battle royale. No respawns — the <b>last snake wins the whole pot</b>.</p></div></div>
+      <div class="exp-item"><span class="exp-ic">🌀</span><div><b>Chaos Mode</b><p>At <b>:15</b> &amp; <b>:45</b>: grab floating <b>power-ups</b> — speed, shield, magnet, ×2 points, phase, and ghost. Pure mayhem, no eliminations.</p></div></div>
     </aside>
     <div class="lobby-card">
       <img src="/banner.jpg" class="lobby-banner" alt="Solither — Snake Hunt" />
