@@ -72,6 +72,31 @@ canvas#game {
   100% { opacity: 0; }
 }
 
+/* Death Match "get ready" countdown — big centered 10 → GO! */
+#dmCountdown {
+  position: fixed; inset: 0; z-index: 66; pointer-events: none;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 4px; text-align: center;
+}
+.dmc-label {
+  font-size: 30px; font-weight: 700; letter-spacing: 5px; color: #FF8094;
+  text-shadow: 0 0 22px rgba(255, 77, 109, 0.6);
+}
+.dmc-num {
+  font-size: 156px; font-weight: 700; line-height: 1;
+  background: linear-gradient(90deg, #FF4D6D, #FFD166);
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 30px rgba(255, 77, 109, 0.45));
+  animation: dmcPop 0.55s cubic-bezier(0.2, 1.4, 0.5, 1);
+}
+.dmc-num.go { font-size: 200px; letter-spacing: 2px; }
+.dmc-sub { font-size: 18px; opacity: 0.9; color: #ffd9c0; margin-top: 4px; }
+@keyframes dmcPop { from { transform: scale(0.35); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@media (max-width: 640px) {
+  .dmc-num { font-size: 96px; } .dmc-num.go { font-size: 120px; }
+  .dmc-label { font-size: 20px; } .dmc-sub { font-size: 13px; }
+}
+
 /* Persistent flashing "DEATH MATCH" badge — runs the whole match so everyone knows */
 #dmLiveBadge {
   position: fixed; top: 70px; left: 50%; transform: translateX(-50%);

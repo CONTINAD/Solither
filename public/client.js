@@ -585,13 +585,15 @@ function wireSocket() {
   });
 
   // ── Death Match ──
-  socket.on('deathMatchStart', () => {
+  socket.on('deathMatchStart', (d) => {
     dmActive = true;
     SFX.deathMatch();   // ominous klaxon — unmistakable audio cue
     flashDeathMatch();  // hard red screen flash
-    showDmBanner('☠️ DEATH MATCH',
+    const cdSec = d && d.countdownMs ? Math.round(d.countdownMs / 1000) : 0;
+    if (cdSec > 0) startDmCountdown(cdSec); // big 10 → GO! "get ready" countdown
+    else showDmBanner('☠️ DEATH MATCH',
       'Last snake alive wins the WHOLE pot — the ring is closing in, stay inside it!', 6000);
-    if (playing || spectating) showToast('⚔️ Death Match! No respawns — last snake standing takes it all.');
+    if (playing || spectating) showToast('⚔️ Death Match starting — get into position! No respawns; last snake wins it all.');
     // If we're sitting on the death screen when the DM kicks off, we didn't make the
     // cut — slide into spectate instead of staring at a Respawn button that won't work.
     if (!playing && !spectating && !$('deathScreen').classList.contains('hidden')) {
@@ -600,6 +602,8 @@ function wireSocket() {
   });
   socket.on('deathMatchEnd', (d) => {
     dmActive = false;
+    clearInterval(dmCountdownTimer); // safety: kill any lingering countdown
+    $('dmCountdown').classList.add('hidden');
     const name = (d && d.winner && d.winner.name) || null;
     const sol = (d && d.sol) || 0;
     if (name) {
@@ -909,6 +913,34 @@ function flashDeathMatch() {
   f.classList.remove('flash');
   void f.offsetWidth; // reflow so the animation restarts even on back-to-back triggers
   f.classList.add('flash');
+}
+
+let dmCountdownTimer = null;
+function startDmCountdown(secs) {
+  const el = $('dmCountdown');
+  if (!el) return;
+  let n = secs;
+  const draw = () => {
+    // Re-set innerHTML each tick so the .dmc-num pop animation restarts on every number.
+    el.innerHTML =
+      '<div class="dmc-label">☠️ DEATH MATCH</div>' +
+      '<div class="dmc-num">' + n + '</div>' +
+      '<div class="dmc-sub">Get into position — last snake standing wins it ALL!</div>';
+  };
+  el.classList.remove('hidden');
+  draw();
+  SFX.tick();
+  clearInterval(dmCountdownTimer);
+  dmCountdownTimer = setInterval(() => {
+    n--;
+    if (n > 0) { draw(); SFX.tick(); }
+    else {
+      el.innerHTML = '<div class="dmc-num go">GO!</div>';
+      SFX.streak(6); // punchy "go" sting
+      clearInterval(dmCountdownTimer);
+      setTimeout(() => el.classList.add('hidden'), 1000);
+    }
+  }, 1000);
 }
 
 let dmBannerTimer = null;

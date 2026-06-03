@@ -22,8 +22,9 @@ const CLAIM_LEAD_MS = Number(process.env.CLAIM_LEAD_MS) || 10000;
 // ── Death Match (battle royale) ──────────────────────────────
 // Fires on every :00/:30 wall-clock slot (at the next round boundary). The play circle
 // shrinks, there's no respawn, last snake standing takes the whole pool. Then normal resumes.
-const DM_INTERVAL_MS = (Number(process.env.DM_INTERVAL_MIN) || 30) * 60 * 1000;
-const DM_GRACE_MS    = Number(process.env.DM_GRACE_MS)   || 12000;   // before the circle starts closing
+const DM_INTERVAL_MS  = (Number(process.env.DM_INTERVAL_MIN) || 30) * 60 * 1000;
+const DM_COUNTDOWN_MS = Number(process.env.DM_COUNTDOWN_MS) || 10000;  // "get ready" countdown before the match goes live (everyone immune)
+const DM_GRACE_MS    = Number(process.env.DM_GRACE_MS)   || 5000;    // after GO, before the circle starts closing
 const DM_SHRINK_MS   = Number(process.env.DM_SHRINK_MS)  || 90000;   // time to fully close
 const DM_MIN_RADIUS  = Number(process.env.DM_MIN_RADIUS) || 300;     // final ring size
 const DM_MAX_MS      = Number(process.env.DM_MAX_MS)     || 210000;  // hard cap (~3.5 min)
@@ -58,6 +59,7 @@ export class RoundManager {
     this.dmActive = false;
     this.dmPending = false;
     this.dmStartAt = 0;
+    this.dmCountdownUntil = 0; // during the pre-match "get ready" countdown, this is in the future
     this._dmSlot = Math.floor(Date.now() / DM_INTERVAL_MS); // current :00/:30 slot
     this._dmLeaderId = null; // top alive during the DM (winner fallback)
     this._load(); // resume round number + recent history across restarts
@@ -230,17 +232,30 @@ export class RoundManager {
   // ── Death Match ────────────────────────────────────────────
   startDeathMatch() {
     this.dmActive = true;
-    this.dmStartAt = Date.now();
+    const now = Date.now();
+    // A "get ready" countdown runs first: arena is set, everyone's immune, ring is full.
+    // The match clock (grace → shrink → cap) only starts when the countdown ends ("GO").
+    this.dmCountdownUntil = now + DM_COUNTDOWN_MS;
+    this.dmStartAt = this.dmCountdownUntil;
     this._dmLeaderId = null;
     this.game.deathMatch = true;
     this.game.playRadius = WORLD.radius;
-    this.game.resetArena(); // fresh, fair start for everyone alive (+ spawn immunity)
-    this.io.emit('deathMatchStart', { graceMs: DM_GRACE_MS, shrinkMs: DM_SHRINK_MS });
-    console.log('[Solither] ⚔️  DEATH MATCH started — last snake standing wins the pot.');
+    this.game.resetArena(); // fresh, fair start — fresh spawn for everyone alive
+    // Keep everyone immune through the whole countdown (+1s past GO) so positioning is safe
+    // and the reveal isn't an instant-kill scramble.
+    const immuneTil = this.dmCountdownUntil + 1000;
+    for (const p of this.game.players.values()) if (p.alive) p.immuneUntil = immuneTil;
+    this.io.emit('deathMatchStart', { countdownMs: DM_COUNTDOWN_MS, graceMs: DM_GRACE_MS, shrinkMs: DM_SHRINK_MS });
+    console.log(`[Solither] ⚔️  DEATH MATCH — ${Math.round(DM_COUNTDOWN_MS / 1000)}s countdown, then last snake standing wins the pot.`);
   }
 
   _tickDeathMatch(now) {
-    const elapsed = now - this.dmStartAt;
+    // "Get ready" countdown: hold the full ring, nobody's out yet, no win checks.
+    if (now < this.dmCountdownUntil) {
+      this.game.playRadius = WORLD.radius;
+      return;
+    }
+    const elapsed = now - this.dmStartAt; // 0 at "GO"
     const W = WORLD.radius;
     // Hold full size during the grace, then close the ring down to the minimum.
     if (elapsed <= DM_GRACE_MS) {
