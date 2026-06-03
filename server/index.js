@@ -160,6 +160,11 @@ io.on('connection', (socket) => {
       ack?.({ ok: false, reason: `Arena is full (${config.maxPlayers} players). Try again in a moment.` });
       return;
     }
+    // No new joins mid-Death-Match (it's a closed last-snake-standing). Spectate is open.
+    if (game.deathMatch && playerId == null) {
+      ack?.({ ok: false, reason: 'Death Match in progress — hit Spectate to watch; the next game starts right after.' });
+      return;
+    }
     const result = await verifyWallet(wallet);
     if (!result.ok) {
       ack?.({ ok: false, reason: result.reason });
@@ -230,6 +235,7 @@ io.on('connection', (socket) => {
 
   socket.on('respawn', async (_, ack) => {
     if (playerId == null) { ack?.({ ok: false }); return; }
+    if (game.deathMatch) { ack?.({ ok: false, reason: 'Death Match in progress — no respawns. Spectate; you can play again right after.' }); return; }
     if (onCooldown('respawn', 400)) { ack?.({ ok: false }); return; }
     // Re-check holdings on every new life — you can't keep respawning if you no longer hold.
     const cur = game.players.get(playerId);

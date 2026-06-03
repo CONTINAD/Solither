@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { config } from './config.js';
 import { recordPayout } from './rewardsLedger.js';
+import { WORLD } from './game.js';
 
 // Round history + counter persist to data/rounds.json so the "recent rounds" list and
 // the round number survive restarts/redeploys (when DATA_DIR points at a persistent volume).
@@ -17,6 +18,17 @@ const REWARD_WEIGHTS = [0.35, 0.25, 0.15, 0.10, 0.05];
 // Claim creator fees this many ms before the round ends, so the SOL has landed
 // in the treasury by the time we compute + send payouts.
 const CLAIM_LEAD_MS = Number(process.env.CLAIM_LEAD_MS) || 10000;
+
+// ── Death Match (battle royale) ──────────────────────────────
+// Fires on every :00/:30 wall-clock slot (at the next round boundary). The play circle
+// shrinks, there's no respawn, last snake standing takes the whole pool. Then normal resumes.
+const DM_INTERVAL_MS = (Number(process.env.DM_INTERVAL_MIN) || 30) * 60 * 1000;
+const DM_GRACE_MS    = Number(process.env.DM_GRACE_MS)   || 12000;   // before the circle starts closing
+const DM_SHRINK_MS   = Number(process.env.DM_SHRINK_MS)  || 90000;   // time to fully close
+const DM_MIN_RADIUS  = Number(process.env.DM_MIN_RADIUS) || 300;     // final ring size
+const DM_MAX_MS      = Number(process.env.DM_MAX_MS)     || 210000;  // hard cap (~3.5 min)
+const DM_MIN_PLAYERS = Number(process.env.DM_MIN_PLAYERS)|| 2;       // need this many alive to run
+const DM_WINNER_PCT  = Number(process.env.DM_WINNER_PCT) || 0.9;     // winner takes this share of claimed fees
 
 // ─────────────────────────────────────────────────────────────
 // Reward rounds: every ROUND_SECONDS, snapshot the top N *human*
@@ -42,6 +54,12 @@ export class RoundManager {
     this._claimStarted = false;
     this._claimPromise = null; // resolves to the SOL claimed this round (= the pool)
     this._ending = false;      // re-entry guard while endRound() awaits the claim
+    // Death Match state
+    this.dmActive = false;
+    this.dmPending = false;
+    this.dmStartAt = 0;
+    this._dmSlot = Math.floor(Date.now() / DM_INTERVAL_MS); // current :00/:30 slot
+    this._dmLeaderId = null; // top alive during the DM (winner fallback)
     this._load(); // resume round number + recent history across restarts
   }
 
@@ -80,12 +98,21 @@ export class RoundManager {
       msRemaining: this.msRemaining(),
       roundLength: this.roundLength,
       topN: this.topN,
+      deathMatch: this.dmActive,
       lastWinners: this.history.length ? this.history[this.history.length - 1].winners : [],
     };
   }
 
   tick() {
     const now = Date.now();
+
+    // A Death Match takes over the loop entirely while it runs.
+    if (this.dmActive) { this._tickDeathMatch(now); return; }
+
+    // Cross a :00/:30 slot boundary → queue a Death Match for the next round boundary.
+    const slot = Math.floor(now / DM_INTERVAL_MS);
+    if (slot !== this._dmSlot) { this._dmSlot = slot; this.dmPending = true; }
+
     const msLeft = this.roundEndsAt - now;
     // ~10s before the end, START the creator-fee claim. Keep the PROMISE so endRound
     // can AWAIT it — its result (SOL netted in) is this round's pool.
@@ -175,6 +202,17 @@ export class RoundManager {
         .catch((e) => console.error('[rewards] payout hook failed:', e.message));
     }
 
+    this._claimStarted = false;
+    this._claimPromise = null;
+
+    // A Death Match is queued (we crossed a :00/:30 mark): start it instead of a normal
+    // round — but only with enough players, otherwise skip it and carry on.
+    if (this.dmPending) {
+      this.dmPending = false;
+      if (this.game.aliveHumans().length >= DM_MIN_PLAYERS) { this.startDeathMatch(); return; }
+      console.log('[Solither] Death Match skipped — not enough players.');
+    }
+
     // Every 3rd round: full arena wipe — fresh food, fresh bots, every snake reset.
     if (this.roundNumber % 3 === 0) {
       this.game.resetArena();
@@ -182,12 +220,81 @@ export class RoundManager {
       console.log(`[Solither] Arena wiped after round ${this.roundNumber} — fresh start.`);
     }
 
-    // Start the next round — reset the per-round claim state.
-    this._claimStarted = false;
-    this._claimPromise = null;
+    // Start the next normal round.
     this.roundNumber += 1;
     this.roundEndsAt = Date.now() + this.roundLength;
     this._save(); // persist new round number + history so a redeploy resumes, not resets
+    this.io.emit('roundStarted', this.status());
+  }
+
+  // ── Death Match ────────────────────────────────────────────
+  startDeathMatch() {
+    this.dmActive = true;
+    this.dmStartAt = Date.now();
+    this._dmLeaderId = null;
+    this.game.deathMatch = true;
+    this.game.playRadius = WORLD.radius;
+    this.game.resetArena(); // fresh, fair start for everyone alive (+ spawn immunity)
+    this.io.emit('deathMatchStart', { graceMs: DM_GRACE_MS, shrinkMs: DM_SHRINK_MS });
+    console.log('[Solither] ⚔️  DEATH MATCH started — last snake standing wins the pot.');
+  }
+
+  _tickDeathMatch(now) {
+    const elapsed = now - this.dmStartAt;
+    const W = WORLD.radius;
+    // Hold full size during the grace, then close the ring down to the minimum.
+    if (elapsed <= DM_GRACE_MS) {
+      this.game.playRadius = W;
+    } else {
+      const t = Math.min(1, (elapsed - DM_GRACE_MS) / DM_SHRINK_MS);
+      this.game.playRadius = W - (W - DM_MIN_RADIUS) * t;
+    }
+    // Track the current leader (winner fallback) + check the win condition.
+    const alive = this.game.aliveHumans();
+    if (alive.length) {
+      let top = alive[0];
+      for (const p of alive) if (p.score > top.score) top = p;
+      this._dmLeaderId = top.id;
+    }
+    if ((alive.length <= 1 || elapsed > DM_MAX_MS) && !this._ending) {
+      this._ending = true;
+      Promise.resolve(this.endDeathMatch())
+        .catch((e) => console.error('[rewards] endDeathMatch failed:', e.message))
+        .finally(() => { this._ending = false; });
+    }
+  }
+
+  async endDeathMatch() {
+    const alive = this.game.aliveHumans();
+    const winner = alive[0] || this.game.players.get(this._dmLeaderId) || this.game.topAliveSnake() || null;
+
+    // Claim the period's creator fees → the WHOLE player-pool goes to the one winner.
+    let pool = 0;
+    try { if (this.feeClaimHook) pool = Number(await this.feeClaimHook()) || 0; } catch (e) { console.error('[rewards] DM claim:', e.message); }
+    const sol = Math.round(pool * DM_WINNER_PCT * 1e5) / 1e5;
+
+    let results = [];
+    if (winner && winner.wallet && sol > 0) {
+      const w = [{ rank: 1, name: winner.name, wallet: winner.wallet, score: winner.score, sol }];
+      recordPayout(w);
+      if (this.payoutHook) { try { results = await this.payoutHook(w, 'DM') || []; } catch (e) { console.error('[rewards] DM payout:', e.message); } }
+    }
+    this.io.emit('deathMatchEnd', {
+      winner: winner ? { name: winner.name, score: winner.score } : null,
+      sol, results,
+    });
+    console.log(`[Solither] ⚔️  DEATH MATCH won by ${winner ? winner.name : '—'} → +${sol} SOL.`);
+
+    // Back to the regular game.
+    this.game.deathMatch = false;
+    this.game.playRadius = WORLD.radius;
+    this.dmActive = false;
+    this._claimStarted = false;
+    this._claimPromise = null;
+    this.game.resetArena();
+    this.roundNumber += 1;
+    this.roundEndsAt = Date.now() + this.roundLength;
+    this._save();
     this.io.emit('roundStarted', this.status());
   }
 }

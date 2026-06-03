@@ -163,6 +163,7 @@ const cam = { x: 0, y: 0, init: false };
 // Spectate: when dead and watching, follow the live leader's head.
 let spectating = false;
 let freeWatching = false; // watching without being a player (no tokens needed)
+let dmActive = false;     // a Death Match is currently running
 const specTarget = { x: 0, y: 0, has: false, id: null };
 
 // ── Load public config ───────────────────────────────────────
@@ -515,6 +516,12 @@ function wireSocket() {
     prevLen = null;
     SFX.stopBoost();
     SFX.death();
+    if (dmActive) {
+      // Death Match: no respawn — you're out, auto-spectate the survivors.
+      showToast("☠️ You're out — last snake standing wins it. Spectating…");
+      enterSpectate();
+      return;
+    }
     $('deathReason').textContent =
       info.cause === 'wall' ? 'You hit the edge of the world.'
         : info.killedBy ? `Cut off by ${info.killedBy}.`
@@ -568,6 +575,33 @@ function wireSocket() {
       if ((playing || spectating) && sent) showToast(`✅ Rewards sent to ${sent} winner${sent === 1 ? '' : 's'}!`);
     }
     fetchRewards(); // refresh the lobby "rewards sent" total + top earners
+  });
+
+  // ── Death Match ──
+  socket.on('deathMatchStart', () => {
+    dmActive = true;
+    SFX.death(); // sharp sting to mark the shift
+    showDmBanner('☠️ DEATH MATCH',
+      'Last snake alive wins the WHOLE pot — the ring is closing in, stay inside it!', 5200);
+    if (playing || spectating) showToast('⚔️ Death Match! No respawns — last snake standing takes it all.');
+    // If we're sitting on the death screen when the DM kicks off, we didn't make the
+    // cut — slide into spectate instead of staring at a Respawn button that won't work.
+    if (!playing && !spectating && !$('deathScreen').classList.contains('hidden')) {
+      enterSpectate();
+    }
+  });
+  socket.on('deathMatchEnd', (d) => {
+    dmActive = false;
+    const name = (d && d.winner && d.winner.name) || null;
+    const sol = (d && d.sol) || 0;
+    if (name) {
+      const prize = sol > 0 ? ` — +${fmtSol(sol)} SOL!` : '!';
+      showDmBanner('👑 ' + name + ' WINS', 'Last snake standing' + prize + ' Back to the regular game…', 6500);
+      spawnConfetti(180);
+    } else {
+      showDmBanner('Death Match over', 'No winner this round — back to the regular game…', 4000);
+    }
+    fetchRewards();
   });
 
   // ── Connection status + auto-reconnect ──
@@ -647,6 +681,11 @@ function sendToLobbyWithError(msg) {
 }
 
 function doRespawn() {
+  if (dmActive) {
+    // No respawns during a Death Match — keep them spectating instead of dumping to lobby.
+    showToast('☠️ Death Match in progress — no respawns. The next game starts right after!');
+    return;
+  }
   socket.emit('respawn', {}, (resp) => {
     if (resp && resp.ok) {
       myId = resp.playerId;
@@ -664,12 +703,13 @@ $('respawnBtn').addEventListener('click', doRespawn);
 // In free-watch mode this button is "▶ Play" → go to lobby to set up; otherwise respawn.
 $('specRespawnBtn').addEventListener('click', () => { if (freeWatching) stopWatching(); else doRespawn(); });
 
-$('spectateBtn').addEventListener('click', () => {
+function enterSpectate() {
   spectating = true; specTarget.has = false; specTarget.id = null;
   socket.emit('spectate');
   $('deathScreen').classList.add('hidden');
   $('spectateBar').classList.remove('hidden');
-});
+}
+$('spectateBtn').addEventListener('click', enterSpectate);
 
 function cycleSpectate(dir) {
   if (!spectating || !socket) return;
@@ -698,6 +738,13 @@ $('quitBtn').addEventListener('click', () => {
 let lastTickSec = -1;
 function updateRoundUI(round) {
   if (!round) return;
+  dmActive = !!round.deathMatch;
+  if (dmActive) {
+    // During a Death Match the round pill shows the mode, not a countdown.
+    $('roundTimer').textContent = '☠️ LAST SNAKE';
+    $('roundPill').classList.add('urgent');
+    return;
+  }
   const sec = Math.ceil(round.msRemaining / 1000);
   const m = Math.floor(sec / 60), s = sec % 60;
   $('roundTimer').textContent = `${m}:${String(s).padStart(2, '0')}`;
@@ -833,6 +880,16 @@ function showToast(msg) {
   t.classList.add('show');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.classList.remove('show'), 4000);
+}
+
+let dmBannerTimer = null;
+function showDmBanner(title, sub, ms) {
+  $('dmTitle').textContent = title;
+  $('dmSub').textContent = sub;
+  const ov = $('dmOverlay');
+  ov.classList.remove('hidden');
+  clearTimeout(dmBannerTimer);
+  dmBannerTimer = setTimeout(() => ov.classList.add('hidden'), ms || 5000);
 }
 
 // ── Input listeners ──────────────────────────────────────────

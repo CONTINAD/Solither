@@ -104,6 +104,15 @@ export class Game {
     this.tick = 0;
     for (let i = 0; i < FOOD_TARGET; i++) this.food.push(this.spawnFood());
     this.onDeath = null; // optional callback(player)
+    this.playRadius = WORLD.radius; // shrinks during a Death Match; otherwise full
+    this.deathMatch = false;        // true while a Death Match is running
+  }
+
+  /** Alive non-bot players (used for Death Match win detection). */
+  aliveHumans() {
+    const out = [];
+    for (const p of this.players.values()) if (p.alive && !p.isBot) out.push(p);
+    return out;
   }
 
   spawnFood(x, y, value = 1, color = null, orb = false) {
@@ -312,16 +321,15 @@ export class Game {
       speed *= (1 - penalty);
     }
 
-    let nx = p.x + Math.cos(p.angle) * speed;
-    let ny = p.y + Math.sin(p.angle) * speed;
-    const clamped = clampToWorld(nx, ny);
-    p.x = clamped.x;
-    p.y = clamped.y;
-    if (clamped.hitWall) {
-      // Hard wall: touching the edge of the world kills you.
+    const nx = p.x + Math.cos(p.angle) * speed;
+    const ny = p.y + Math.sin(p.angle) * speed;
+    // Lethal boundary = the current play radius (shrinks during a Death Match; full otherwise).
+    if (Math.hypot(nx, ny) > this.playRadius) {
       this.kill(p, 'wall');
       return;
     }
+    p.x = nx;
+    p.y = ny;
 
     // Record trail.
     p.trail.unshift({ x: p.x, y: p.y });
@@ -590,7 +598,7 @@ export class Game {
         }
       }
     }
-    return { snakes, food, world: WORLD };
+    return { snakes, food, world: { radius: Math.round(this.playRadius) } };
   }
 
   // 1-based rank of a player by score among everyone currently in the game.
