@@ -176,7 +176,25 @@ fetch('/api/config').then((r) => r.json()).then((cfg) => {
       `<code>${shortMint(cfg.tokenMint)}</code> to play.`;
     if (exGate) exGate.textContent = `Hold ${cfg.minTokenBalance.toLocaleString()} of the ${shortMint(cfg.tokenMint)} token to play.`;
   }
+  // Contract-address bar — appears as soon as a token mint is configured.
+  const caBox = $('caBox');
+  if (cfg.tokenMint) {
+    $('caAddr').textContent = cfg.tokenMint;
+    if (caBox) caBox.classList.remove('hidden');
+  } else if (caBox) {
+    caBox.classList.add('hidden');
+  }
 }).catch(() => {});
+
+$('caCopy')?.addEventListener('click', () => {
+  const addr = $('caAddr').textContent;
+  if (!addr || !navigator.clipboard) return;
+  navigator.clipboard.writeText(addr).then(() => {
+    const b = $('caCopy');
+    b.textContent = 'Copied!'; b.classList.add('copied');
+    setTimeout(() => { b.textContent = 'Copy'; b.classList.remove('copied'); }, 1500);
+  }).catch(() => {});
+});
 
 fetch('/api/rounds').then((r) => r.json()).then(renderRecentRounds).catch(() => {});
 fetchHighScores();

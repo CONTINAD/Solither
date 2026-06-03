@@ -193,6 +193,25 @@ canvas#game {
 }
 .tagline b { color: var(--sol-green); }
 
+.ca-box {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 14px; padding: 8px 10px; border-radius: 12px;
+  background: rgba(20, 241, 149, 0.08); border: 1px solid rgba(20, 241, 149, 0.32);
+}
+.ca-label { font-size: 11px; font-weight: 700; letter-spacing: 1.5px; color: var(--sol-green); flex: 0 0 auto; }
+.ca-addr {
+  flex: 1; min-width: 0; font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: 0.9;
+}
+.ca-copy {
+  flex: 0 0 auto; padding: 5px 11px; border-radius: 8px;
+  border: 1px solid var(--panel-border); background: rgba(255, 255, 255, 0.06);
+  color: #fff; font-size: 11px; font-weight: 600; cursor: pointer; font-family: inherit;
+  transition: background 0.12s, color 0.12s;
+}
+.ca-copy:hover { background: rgba(255, 255, 255, 0.13); }
+.ca-copy.copied { color: var(--sol-green); border-color: rgba(20, 241, 149, 0.45); }
+
 .gate {
   font-size: 12.5px;
   text-align: center;
