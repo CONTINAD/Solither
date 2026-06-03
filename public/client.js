@@ -162,6 +162,7 @@ const cam = { x: 0, y: 0, init: false };
 
 // Spectate: when dead and watching, follow the live leader's head.
 let spectating = false;
+let freeWatching = false; // watching without being a player (no tokens needed)
 const specTarget = { x: 0, y: 0, has: false, id: null };
 
 // ── Load public config ───────────────────────────────────────
@@ -316,6 +317,36 @@ function escapeHtml(s) {
 $('playBtn').addEventListener('click', join);
 $('walletInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') join(); });
 $('nameInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('walletInput').focus(); });
+
+// ── Free spectate (no tokens, no slot) ──
+$('watchBtn')?.addEventListener('click', startWatching);
+function startWatching() {
+  if (!socket) { socket = io(); wireSocket(); }
+  socket.emit('watch');
+  freeWatching = true;
+  spectating = true; specTarget.has = false; specTarget.id = null;
+  playing = false; pred.active = false; reconnectResume = false;
+  $('lobby').classList.add('hidden');
+  $('deathScreen').classList.add('hidden');
+  $('hud').classList.remove('hidden');
+  $('spectateBar').classList.remove('hidden');
+  $('boostBtn').classList.add('hidden');
+  $('playerBadge').classList.add('hidden');
+  $('specNextBtn').classList.add('hidden');     // free watch follows the leader
+  $('specRespawnBtn').textContent = '▶ Play';
+  $('specName').textContent = 'leader';
+  SFX.init();
+}
+function stopWatching() {
+  freeWatching = false; spectating = false; specTarget.has = false;
+  try { socket && socket.emit('unwatch'); } catch {}
+  $('hud').classList.add('hidden');
+  $('spectateBar').classList.add('hidden');
+  $('boostBtn').classList.remove('hidden');
+  $('specNextBtn').classList.remove('hidden');
+  $('specRespawnBtn').textContent = 'Respawn';
+  $('lobby').classList.remove('hidden');
+}
 
 let pendingName = 'Anon';
 
@@ -543,6 +574,7 @@ function wireSocket() {
   socket.on('connect', () => {
     setConn(true);
     hideUpdateOverlay(); // back online — clear the "update pushing" screen
+    if (freeWatching) socket.emit('watch'); // re-subscribe a free spectator after reconnect
     if (hasJoinedOnce && reconnectResume) {
       socket.emit('join', lastJoin, (resp) => {
         if (resp && resp.ok) {
@@ -629,7 +661,8 @@ function doRespawn() {
 }
 
 $('respawnBtn').addEventListener('click', doRespawn);
-$('specRespawnBtn').addEventListener('click', doRespawn);
+// In free-watch mode this button is "▶ Play" → go to lobby to set up; otherwise respawn.
+$('specRespawnBtn').addEventListener('click', () => { if (freeWatching) stopWatching(); else doRespawn(); });
 
 $('spectateBtn').addEventListener('click', () => {
   spectating = true; specTarget.has = false; specTarget.id = null;

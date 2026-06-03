@@ -463,8 +463,11 @@ export class Game {
     // Drop every bot; step()'s top-up repopulates BOT_TARGET fresh ones next tick.
     for (const p of [...this.players.values()]) if (p.isBot) this.players.delete(p.id);
 
-    // Reset each remaining (human) snake in place — no death screen, just a clean slate.
+    // Reset each ALIVE human snake in place — no death screen, just a clean slate.
+    // Dead/spectating players are left dead so they STAY in spectate (e.g. an AFK
+    // streamer) instead of being force-revived into play.
     for (const p of this.players.values()) {
+      if (!p.alive) continue;
       const { x, y } = this.randomSpawnPoint();
       const angle = rand(0, Math.PI * 2);
       const trail = [];

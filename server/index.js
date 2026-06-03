@@ -194,6 +194,7 @@ io.on('connection', (socket) => {
     });
     playerId = player.id;
     socketByPlayerId.set(playerId, socket);
+    socket.leave('spectators'); // if they were free-watching, they're a player now
     clearTimeout(idleTimer); // joined — no longer idle
     ack?.({
       ok: true,
@@ -217,6 +218,15 @@ io.on('connection', (socket) => {
     // data.targetId picks a specific snake to watch; null/absent = auto-follow the leader.
     spectating.set(playerId, (data && data.targetId) || null);
   });
+
+  // Free spectate — ANYONE can watch (no token, no player slot). They get a leader-centered
+  // view in the broadcast loop. To play, they must join properly (token-gated).
+  socket.on('watch', () => {
+    if (playerId != null) return; // already a player
+    socket.join('spectators');
+    clearTimeout(idleTimer);
+  });
+  socket.on('unwatch', () => socket.leave('spectators'));
 
   socket.on('respawn', async (_, ack) => {
     if (playerId == null) { ack?.({ ok: false }); return; }
@@ -300,6 +310,24 @@ setInterval(() => {
         : { id: player.id, alive: false, score: player.score },
       ...game.cullFrameFor(frame, Math.round(center.x), Math.round(center.y)),
       spectate,
+      blips,
+      leaderboard: lb,
+      round: roundStatus,
+      players: humans,
+    });
+  }
+
+  // Free spectators (no token / no slot): one shared, leader-centered view. Using a room
+  // means socket.io serializes the payload ONCE for the whole audience.
+  const specRoom = io.sockets.adapter.rooms.get('spectators');
+  if (specRoom && specRoom.size) {
+    const leader = game.topAliveSnake();
+    const cx = leader ? Math.round(leader.x) : 0;
+    const cy = leader ? Math.round(leader.y) : 0;
+    io.to('spectators').emit('state', {
+      me: { alive: false, spectator: true },
+      ...game.cullFrameFor(frame, cx, cy),
+      spectate: leader ? { id: leader.id, x: cx, y: cy, name: leader.name, score: leader.score } : null,
       blips,
       leaderboard: lb,
       round: roundStatus,
