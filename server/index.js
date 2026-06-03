@@ -17,7 +17,13 @@ const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: '*' } });
+const io = new Server(server, {
+  cors: { origin: '*' },
+  maxHttpBufferSize: 1e5,   // cap inbound message size (anti-abuse)
+  connectTimeout: 20000,
+  pingInterval: 25000,
+  pingTimeout: 20000,
+});
 
 app.use(express.json());
 // no-cache + revalidate so deploys reach players without a manual hard-refresh
@@ -80,6 +86,15 @@ const socketByPlayerId = new Map(); // playerId -> socket
 const spectating = new Map();       // spectator playerId -> watched targetId (null = auto/leader)
 const walletSocket = new Map();     // wallet -> socket (enforces one active session per wallet)
 
+// ── Abuse / flood guardrails ──
+const connsByIp = new Map();        // ip -> live connection count
+const MAX_CONNS_PER_IP = Number(process.env.MAX_CONNS_PER_IP) || 6;
+const JOIN_TIMEOUT_MS = Number(process.env.JOIN_TIMEOUT_MS) || 20000; // drop sockets that never join
+const clientIp = (s) => {
+  const f = s.handshake.headers['x-forwarded-for'];
+  return (f ? String(f).split(',')[0].trim() : s.handshake.address) || 'unknown';
+};
+
 game.onDeath = (player, cause, killer) => {
   // Global kill-feed event for collision kills (includes bots — it's fun to read).
   if (cause === 'collision' && killer) {
@@ -113,8 +128,20 @@ game.onDeath = (player, cause, killer) => {
 
 // ── Socket handling ──────────────────────────────────────────
 io.on('connection', (socket) => {
+  // ── Per-IP connection cap (flood guard). Track + decrement first so it's accurate
+  // even when we drop the socket below. ──
+  const ip = clientIp(socket);
+  connsByIp.set(ip, (connsByIp.get(ip) || 0) + 1);
+  socket.on('disconnect', () => {
+    const c = (connsByIp.get(ip) || 1) - 1;
+    if (c <= 0) connsByIp.delete(ip); else connsByIp.set(ip, c);
+  });
+  if (connsByIp.get(ip) > MAX_CONNS_PER_IP) { socket.disconnect(true); return; }
+
   let playerId = null;
   let joinedWallet = null; // wallet this socket joined with (for one-session-per-wallet cleanup)
+  // Drop sockets that connect but never join (idle connection floods).
+  let idleTimer = setTimeout(() => { if (playerId == null) socket.disconnect(true); }, JOIN_TIMEOUT_MS);
 
   // ── Per-socket rate limiting ──
   let inputCount = 0, inputWindow = Date.now();
@@ -158,6 +185,7 @@ io.on('connection', (socket) => {
     });
     playerId = player.id;
     socketByPlayerId.set(playerId, socket);
+    clearTimeout(idleTimer); // joined — no longer idle
     ack?.({
       ok: true,
       playerId,
@@ -202,6 +230,7 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     // Release this wallet's session lock only if we still hold it (not if it was
     // already taken over by a newer socket for the same wallet).
+    clearTimeout(idleTimer);
     if (joinedWallet && walletSocket.get(joinedWallet) === socket) walletSocket.delete(joinedWallet);
     if (playerId != null) {
       socketByPlayerId.delete(playerId);
@@ -220,15 +249,21 @@ setInterval(() => {
 }, TICK_MS);
 
 // ── Network broadcast loop (lower rate than sim to save bandwidth) ──
-const NET_HZ = 15;
+const NET_HZ = Number(process.env.NET_HZ) || 10;
 setInterval(() => {
   const lb = game.leaderboard(10);
   const roundStatus = rounds.status();
   const humans = countHumans();
   const frame = game.buildFrame(); // built ONCE per tick, shared across all viewers
-  // Global minimap blips: every alive snake's position (tiny — just coords).
+  // Global minimap blips + rank map — computed ONCE per broadcast (was O(n^2) via rankOf
+  // per socket). One sorted pass gives every player's rank + the blips.
   const blips = [];
-  for (const p of game.players.values()) if (p.alive) blips.push([Math.round(p.x), Math.round(p.y)]);
+  const alivePlayers = [];
+  for (const p of game.players.values()) if (p.alive) { blips.push([Math.round(p.x), Math.round(p.y)]); alivePlayers.push(p); }
+  alivePlayers.sort((a, b) => b.score - a.score);
+  const rankMap = new Map();
+  for (let i = 0; i < alivePlayers.length; i++) rankMap.set(alivePlayers[i].id, i + 1);
+  const nowMs = Date.now();
   for (const [pid, socket] of socketByPlayerId) {
     const player = game.players.get(pid);
     if (!player) continue;
@@ -252,7 +287,7 @@ setInterval(() => {
 
     socket.emit('state', {
       me: player.alive
-        ? { id: player.id, x: Math.round(player.x), y: Math.round(player.y), a: Number(player.angle.toFixed(3)), boosting: player.boosting, score: player.score, length: Math.floor(player.length), alive: true, rank: game.rankOf(player), coiling: player.coiling, immune: Date.now() < (player.immuneUntil || 0) }
+        ? { id: player.id, x: Math.round(player.x), y: Math.round(player.y), a: Number(player.angle.toFixed(3)), boosting: player.boosting, score: player.score, length: Math.floor(player.length), alive: true, rank: rankMap.get(player.id) || 1, coiling: player.coiling, immune: nowMs < (player.immuneUntil || 0) }
         : { id: player.id, alive: false, score: player.score },
       ...game.cullFrameFor(frame, Math.round(center.x), Math.round(center.y)),
       spectate,
