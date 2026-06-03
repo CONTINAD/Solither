@@ -72,6 +72,40 @@ canvas#game {
   100% { opacity: 0; }
 }
 
+/* Persistent flashing "DEATH MATCH" badge — runs the whole match so everyone knows */
+#dmLiveBadge {
+  position: fixed; top: 70px; left: 50%; transform: translateX(-50%);
+  z-index: 30; pointer-events: none; white-space: nowrap;
+  padding: 9px 24px; border-radius: 16px;
+  font-weight: 700; font-size: 17px; letter-spacing: 1.2px;
+  border: 1.5px solid rgba(255, 77, 109, 0.6);
+  animation: dmBadgeFlash 0.85s ease-in-out infinite;
+}
+#dmLiveBadge .dm-sep { opacity: 0.7; margin: 0 6px; }
+@keyframes dmBadgeFlash {
+  0%, 100% {
+    background: rgba(255, 77, 109, 0.14); border-color: rgba(255, 77, 109, 0.5);
+    box-shadow: 0 0 14px rgba(255, 77, 109, 0.35); color: #ffd9c0;
+  }
+  50% {
+    background: rgba(255, 77, 109, 0.5); border-color: #FFD166;
+    box-shadow: 0 0 32px rgba(255, 77, 109, 0.75); color: #fff;
+  }
+}
+/* The round pill flashes red during a Death Match too */
+#roundPill.dm {
+  animation: dmPillFlash 0.85s ease-in-out infinite;
+  border-color: rgba(255, 77, 109, 0.7) !important;
+}
+@keyframes dmPillFlash {
+  0%, 100% { background: rgba(255, 77, 109, 0.16); box-shadow: 0 0 10px rgba(255, 77, 109, 0.3); }
+  50% { background: rgba(255, 77, 109, 0.5); box-shadow: 0 0 24px rgba(255, 77, 109, 0.7); }
+}
+
+@media (max-width: 640px) {
+  #dmLiveBadge { font-size: 12px; padding: 7px 14px; top: 62px; }
+}
+
 /* Death Match banner */
 #dmOverlay {
   position: fixed; left: 0; right: 0; top: 14%; z-index: 65;
@@ -326,6 +360,7 @@ canvas#game {
   transition: background 0.15s;
 }
 #watchBtn:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
+#watchNote { font-size: 11px; opacity: 0.55; text-align: center; margin-top: 6px; line-height: 1.35; }
 
 .error { color: #ff6b81; font-size: 13px; text-align: center; min-height: 18px; margin-top: 10px; }
 

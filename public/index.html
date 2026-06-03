@@ -81,6 +81,9 @@
 
     <div id="multiKill" class="hidden"></div>
 
+    <!-- Persistent flashing banner so it's obvious a Death Match is running -->
+    <div id="dmLiveBadge" class="hidden">☠️ DEATH MATCH <span class="dm-sep">·</span> LAST SNAKE WINS IT ALL</div>
+
     <div id="toast"></div>
   </div>
 
@@ -133,7 +136,8 @@
       </label>
 
       <button id="playBtn">PLAY</button>
-      <button id="watchBtn">👁 Spectate — no tokens needed</button>
+      <button id="watchBtn">🎥 FULL SPECTATE — watch live, no wallet</button>
+      <div id="watchNote">Pure spectator: follows the action, never joins a Death Match, safe to leave running for hours.</div>
       <div id="joinError" class="error"></div>
 
       <div class="how">

@@ -750,14 +750,18 @@ function updateRoundUI(round) {
   if (dmActive) {
     // During a Death Match the round pill shows the mode, not a countdown.
     $('roundTimer').textContent = '☠️ LAST SNAKE';
-    $('roundPill').classList.add('urgent');
-    // Keep the red danger vignette glowing for the whole match (auto-pulsed in the rAF loop),
-    // so it's always obvious you're in a Death Match — not a normal round.
+    $('roundPill').classList.add('urgent', 'dm');
+    // Keep the red danger vignette glowing + a big flashing DEATH MATCH badge up for the
+    // WHOLE match (vignette is auto-pulsed in the rAF loop), so it's unmistakable.
     const inGame = !$('hud').classList.contains('hidden');
     const vig = $('urgentVignette');
     if (vig) vig.classList.toggle('hidden', !inGame);
+    $('dmLiveBadge').classList.toggle('hidden', !inGame);
     return;
   }
+  // Not a Death Match — make sure its indicators are cleared.
+  $('roundPill').classList.remove('dm');
+  $('dmLiveBadge').classList.add('hidden');
   const sec = Math.ceil(round.msRemaining / 1000);
   const m = Math.floor(sec / 60), s = sec % 60;
   $('roundTimer').textContent = `${m}:${String(s).padStart(2, '0')}`;
