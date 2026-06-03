@@ -1,0 +1,130 @@
+<svg width="1920" height="1080" viewBox="0 0 1920 1080" xmlns="http://www.w3.org/2000/svg" font-family="'Space Grotesk', 'Segoe UI', Arial, sans-serif">
+  <defs>
+    <linearGradient id="brand" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#14F195"/>
+      <stop offset="0.5" stop-color="#3FB6E8"/>
+      <stop offset="1" stop-color="#9945FF"/>
+    </linearGradient>
+    <linearGradient id="danger" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#FF4D6D"/>
+      <stop offset="1" stop-color="#FFD166"/>
+    </linearGradient>
+    <radialGradient id="glowR" cx="50%" cy="42%" r="60%">
+      <stop offset="0" stop-color="#FF4D6D" stop-opacity="0.30"/>
+      <stop offset="1" stop-color="#FF4D6D" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowG" cx="84%" cy="92%" r="55%">
+      <stop offset="0" stop-color="#FFD166" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#FFD166" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="card" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.06"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.02"/>
+    </linearGradient>
+  </defs>
+
+  <!-- background -->
+  <rect width="1920" height="1080" fill="#07060d"/>
+  <rect width="1920" height="1080" fill="url(#glowR)"/>
+  <rect width="1920" height="1080" fill="url(#glowG)"/>
+
+  <!-- shrinking-circle motif (the closing ring), centered behind everything -->
+  <g transform="translate(960,540)" fill="none" stroke="#FF4D6D">
+    <circle r="560" stroke-opacity="0.10" stroke-width="2"/>
+    <circle r="440" stroke-opacity="0.16" stroke-width="2"/>
+    <circle r="330" stroke-opacity="0.22" stroke-width="3" stroke-dasharray="10 14"/>
+    <circle r="225" stroke-opacity="0.30" stroke-width="3"/>
+    <circle r="130" stroke-opacity="0.45" stroke-width="4"/>
+    <!-- inward-closing arrows on the outer ring -->
+    <g stroke="#FF4D6D" stroke-opacity="0.5" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none">
+      <path d="M0,-470 l-18,-26 M0,-470 l18,-26"/>
+      <path d="M0,470 l-18,26 M0,470 l18,26"/>
+      <path d="M-470,0 l-26,-18 M-470,0 l-26,18"/>
+      <path d="M470,0 l26,-18 M470,0 l26,18"/>
+    </g>
+  </g>
+
+  <!-- event pill -->
+  <g transform="translate(960,92)">
+    <rect x="-150" y="-28" width="300" height="56" rx="28" fill="#FF4D6D" fill-opacity="0.16" stroke="#FF4D6D" stroke-opacity="0.6"/>
+    <circle cx="-108" cy="0" r="9" fill="#FF4D6D"/>
+    <text x="20" y="9" text-anchor="middle" font-size="26" font-weight="700" letter-spacing="5" fill="#FF8094">SPECIAL EVENT</text>
+  </g>
+
+  <!-- title -->
+  <text x="960" y="196" text-anchor="middle" font-weight="700" font-size="62" letter-spacing="14">
+    <tspan fill="#ffffff">SOL</tspan><tspan fill="url(#brand)">ITHER</tspan>
+  </text>
+  <text x="960" y="330" text-anchor="middle" font-weight="700" font-size="150" letter-spacing="4" fill="url(#danger)">DEATH MATCH</text>
+  <text x="960" y="392" text-anchor="middle" font-weight="600" font-size="36" letter-spacing="6" fill="#ffd9c0">LAST SNAKE STANDING WINS THE <tspan fill="#FFD166" font-weight="700">ENTIRE</tspan> POT</text>
+
+  <!-- 4 explainer cards -->
+  <g transform="translate(100,452)">
+    <!-- card 1: WHEN -->
+    <g transform="translate(0,0)">
+      <rect width="400" height="372" rx="26" fill="url(#card)" stroke="#FF4D6D" stroke-opacity="0.40"/>
+      <!-- clock icon -->
+      <g transform="translate(36,40)">
+        <circle cx="38" cy="50" r="34" fill="none" stroke="url(#danger)" stroke-width="6"/>
+        <line x1="38" y1="50" x2="38" y2="26" stroke="#FFD166" stroke-width="6" stroke-linecap="round"/>
+        <line x1="38" y1="50" x2="57" y2="58" stroke="#FFD166" stroke-width="6" stroke-linecap="round"/>
+      </g>
+      <text x="36" y="208" font-size="42" font-weight="700" fill="#ffffff">WHEN</text>
+      <text x="36" y="262" font-size="28" fill="#cdbfc4">Top &amp; bottom of every</text>
+      <text x="36" y="300" font-size="28" fill="#cdbfc4">hour &#8212; <tspan fill="#FF8094" font-weight="700">:00 and :30</tspan>.</text>
+      <text x="36" y="338" font-size="28" fill="#cdbfc4">The arena turns deadly.</text>
+    </g>
+    <!-- card 2: THE RING -->
+    <g transform="translate(440,0)">
+      <rect width="400" height="372" rx="26" fill="url(#card)" stroke="#FF4D6D" stroke-opacity="0.40"/>
+      <!-- closing rings icon -->
+      <g transform="translate(36,40)">
+        <circle cx="38" cy="50" r="34" fill="none" stroke="#FF4D6D" stroke-opacity="0.45" stroke-width="4"/>
+        <circle cx="38" cy="50" r="21" fill="none" stroke="#FF4D6D" stroke-opacity="0.85" stroke-width="5"/>
+        <circle cx="38" cy="50" r="8" fill="url(#danger)"/>
+      </g>
+      <text x="36" y="208" font-size="42" font-weight="700" fill="#ffffff">THE RING</text>
+      <text x="36" y="262" font-size="28" fill="#cdbfc4">A circle closes in fast.</text>
+      <text x="36" y="300" font-size="28" fill="#cdbfc4">Stay inside it &#8212; the</text>
+      <text x="36" y="338" font-size="28" fill="#cdbfc4">edge is <tspan fill="#FF8094" font-weight="700">instant death</tspan>.</text>
+    </g>
+    <!-- card 3: ONE LIFE -->
+    <g transform="translate(880,0)">
+      <rect width="400" height="372" rx="26" fill="url(#card)" stroke="#FFD166" stroke-opacity="0.42"/>
+      <!-- skull icon -->
+      <g transform="translate(36,40)">
+        <path d="M12,52 a26,26 0 0 1 52,0 v12 a8,8 0 0 1 -8,8 h-2 v10 h-8 v-8 h-8 v8 h-8 v-10 h-2 a8,8 0 0 1 -8,-8 z" fill="none" stroke="url(#danger)" stroke-width="5" stroke-linejoin="round"/>
+        <circle cx="27" cy="50" r="6" fill="#FF4D6D"/>
+        <circle cx="49" cy="50" r="6" fill="#FF4D6D"/>
+      </g>
+      <text x="36" y="208" font-size="42" font-weight="700" fill="#ffffff">ONE LIFE</text>
+      <text x="36" y="262" font-size="28" fill="#cdbfc4"><tspan fill="#FFD166" font-weight="700">No respawns.</tspan> Die and</text>
+      <text x="36" y="300" font-size="28" fill="#cdbfc4">you auto-spectate the</text>
+      <text x="36" y="338" font-size="28" fill="#cdbfc4">survivors to the end.</text>
+    </g>
+    <!-- card 4: WINS IT ALL -->
+    <g transform="translate(1320,0)">
+      <rect width="400" height="372" rx="26" fill="url(#card)" stroke="#FFD166" stroke-opacity="0.42"/>
+      <!-- crown icon -->
+      <g transform="translate(36,40)">
+        <path d="M8,84 L16,40 L32,66 L42,30 L52,66 L68,40 L76,84 Z" fill="none" stroke="url(#danger)" stroke-width="5" stroke-linejoin="round"/>
+        <rect x="8" y="84" width="68" height="12" rx="3" fill="url(#danger)"/>
+      </g>
+      <text x="36" y="208" font-size="42" font-weight="700" fill="#ffffff">WINS IT ALL</text>
+      <text x="36" y="262" font-size="28" fill="#cdbfc4">The lone survivor takes</text>
+      <text x="36" y="300" font-size="28" fill="#cdbfc4">the <tspan fill="#FFD166" font-weight="700">whole prize pool</tspan>.</text>
+      <text x="36" y="338" font-size="28" fill="#cdbfc4">One winner. Paid in SOL.</text>
+    </g>
+  </g>
+
+  <!-- bottom strip: ties back to the regular game -->
+  <g transform="translate(960,902)">
+    <rect x="-660" y="-44" width="1320" height="88" rx="44" fill="#14F195" fill-opacity="0.07" stroke="#14F195" stroke-opacity="0.30"/>
+    <text x="0" y="11" text-anchor="middle" font-size="33" font-weight="600" fill="#eafff6">When it&#8217;s over, the regular game resumes &#183; <tspan fill="#14F195" font-weight="700">top 5</tspan> split creator fees every round</text>
+  </g>
+
+  <!-- footer: CA + URL -->
+  <text x="960" y="1004" text-anchor="middle" font-size="24" fill="#8b85a6" letter-spacing="1">CA</text>
+  <text x="960" y="1038" text-anchor="middle" font-family="'Courier New', monospace" font-size="28" fill="#d9d3ee">GhrTH8tWDTmodEsatV3WoN3q7YqnG7fHYbr4d4MYpump</text>
+  <text x="80" y="1038" font-size="34" font-weight="700" fill="url(#danger)">solither.xyz</text>
+</svg>
