@@ -10,7 +10,7 @@ import { Game, SIM, SKINS } from './game.js';
 import { RoundManager } from './rewards.js';
 import { recordScore, topScores, resetScores } from './highscores.js';
 import { rewardsSummary, resetLedger } from './rewardsLedger.js';
-import { payoutWinners } from './payout.js';
+import { payoutWinners, claimFees } from './payout.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
@@ -65,6 +65,7 @@ app.get('/api/rewards', (req, res) => {
 const game = new Game();
 const rounds = new RoundManager(game, io);
 rounds.payoutHook = payoutWinners; // sends SOL to winners when PAYOUT_ENABLED (else record-only)
+rounds.feeClaimHook = claimFees;   // claims pump.fun creator fees ~10s before round end
 
 // One-shot wipe of all persisted stats. Set RESET_STATS=1 on the server, deploy once,
 // then set it back to 0 (otherwise every deploy re-wipes).

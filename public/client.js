@@ -499,6 +499,23 @@ function wireSocket() {
     sendToLobbyWithError((info && info.reason) || 'You no longer hold enough tokens to play.');
   });
 
+  // Creator-fee claim → payout flow (fires ~10s before round end).
+  socket.on('claiming', () => {
+    if (playing || spectating) showToast('💰 Claiming creator rewards…');
+  });
+  socket.on('claimed', (d) => {
+    if ((playing || spectating) && d && d.sol > 0) {
+      showToast(`Claimed ◎${(+d.sol).toFixed(4)} — paying out top ${serverConfig.rewardTopN}…`);
+    }
+  });
+  socket.on('payout', (d) => {
+    if (d && d.results) {
+      const sent = d.results.filter((r) => r.sig).length;
+      if ((playing || spectating) && sent) showToast(`✅ Rewards sent to ${sent} winner${sent === 1 ? '' : 's'}!`);
+    }
+    fetchRewards(); // refresh the lobby "rewards sent" total + top earners
+  });
+
   // ── Connection status + auto-reconnect ──
   socket.on('connect', () => {
     setConn(true);

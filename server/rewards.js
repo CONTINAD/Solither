@@ -14,6 +14,10 @@ const ROUNDS_FILE = path.join(DATA_DIR, 'rounds.json');
 // NOT normalized — the remaining 10% (and any unfilled ranks) is the creator's cut.
 const REWARD_WEIGHTS = [0.35, 0.25, 0.15, 0.10, 0.05];
 
+// Claim creator fees this many ms before the round ends, so the SOL has landed
+// in the treasury by the time we compute + send payouts.
+const CLAIM_LEAD_MS = Number(process.env.CLAIM_LEAD_MS) || 10000;
+
 // ─────────────────────────────────────────────────────────────
 // Reward rounds: every ROUND_SECONDS, snapshot the top N *human*
 // players and record them as that round's reward winners.
@@ -33,7 +37,10 @@ export class RoundManager {
     this.roundNumber = 1;
     this.roundEndsAt = Date.now() + this.roundLength;
     this.history = []; // [{ round, endedAt, winners: [...] }]
-    this.payoutHook = null; // optional: async (winners, round) => void
+    this.payoutHook = null;   // async (winners, round) => results — sends SOL to winners
+    this.feeClaimHook = null; // async () => SOL netted in — claims pump.fun creator fees
+    this._claimStarted = false;
+    this._claimedSol = 0;     // creator fees claimed for the CURRENT round (= the pool)
     this._load(); // resume round number + recent history across restarts
   }
 
@@ -77,7 +84,27 @@ export class RoundManager {
   }
 
   tick() {
-    if (Date.now() >= this.roundEndsAt) this.endRound();
+    const now = Date.now();
+    const msLeft = this.roundEndsAt - now;
+    // ~10s before the end, kick off the creator-fee claim so the SOL is in the
+    // treasury before payouts compute.
+    if (!this._claimStarted && this.feeClaimHook && msLeft > 0 && msLeft <= CLAIM_LEAD_MS) {
+      this._claimStarted = true;
+      this._runClaim();
+    }
+    if (now >= this.roundEndsAt) this.endRound();
+  }
+
+  async _runClaim() {
+    this.io.emit('claiming', { round: this.roundNumber }); // client shows "claiming rewards…"
+    try {
+      this._claimedSol = Number(await this.feeClaimHook()) || 0;
+    } catch (e) {
+      console.error('[rewards] fee claim failed:', e.message);
+      this._claimedSol = 0;
+    }
+    this.io.emit('claimed', { round: this.roundNumber, sol: this._claimedSol });
+    console.log(`[Solither] Round ${this.roundNumber} claim → ${this._claimedSol.toFixed(6)} SOL pool.`);
   }
 
   endRound() {
@@ -87,28 +114,30 @@ export class RoundManager {
       .sort((a, b) => b.score - a.score)
       .slice(0, this.topN);
 
-    // Each rank gets a FIXED % of the gross pool (30/20/15/10/10). The unused
-    // 15% (+ any unfilled ranks) is the creator's cut — not distributed.
-    const pool = config.rewardPoolSol;
+    // The pool is EXACTLY the creator fees claimed this round (0 if none / payout off).
+    // Each rank gets a fixed % (35/25/15/10/5); the unused 10% is the creator's cut.
+    const pool = this._claimedSol || 0;
 
     const winners = ranked.map((p, i) => ({
       rank: i + 1,
       name: p.name,
       wallet: p.wallet,
       score: p.score,
-      sol: Math.round((pool * (REWARD_WEIGHTS[i] || 0)) * 1e4) / 1e4,
+      sol: Math.round((pool * (REWARD_WEIGHTS[i] || 0)) * 1e5) / 1e5,
     }));
 
     const record = {
       round: this.roundNumber,
       endedAt: new Date().toISOString(),
+      pool: Math.round(pool * 1e5) / 1e5,
       winners,
     };
     this.history.push(record);
     if (this.history.length > 50) this.history.shift();
 
-    // Accrue the per-wallet + total SOL ledger (shown in the lobby).
-    if (winners.length) recordPayout(winners);
+    // Accrue the per-wallet + total SOL ledger only when there's a real pool
+    // (real claimed fees being paid out), so the lobby total reflects actual SOL sent.
+    if (winners.length && pool > 0) recordPayout(winners);
 
     if (winners.length) {
       console.log(`\n[Solither] ── Round ${this.roundNumber} complete ──`);
@@ -122,11 +151,13 @@ export class RoundManager {
     // Broadcast a celebratory event to all clients.
     this.io.emit('roundEnded', record);
 
-    // Optional automated payout integration point.
-    if (this.payoutHook && winners.length) {
-      Promise.resolve(this.payoutHook(winners, this.roundNumber)).catch((e) =>
-        console.error('[rewards] payout hook failed:', e.message)
-      );
+    // Send the SOL to the winners (only when there's a real pool), then broadcast the
+    // result so clients can show "rewards sent" with tx links.
+    if (this.payoutHook && winners.length && pool > 0) {
+      const r = this.roundNumber;
+      Promise.resolve(this.payoutHook(winners, r))
+        .then((results) => { if (results && results.length) this.io.emit('payout', { round: r, results }); })
+        .catch((e) => console.error('[rewards] payout hook failed:', e.message));
     }
 
     // Every 3rd round: full arena wipe — fresh food, fresh bots, every snake reset.
@@ -136,7 +167,9 @@ export class RoundManager {
       console.log(`[Solither] Arena wiped after round ${this.roundNumber} — fresh start.`);
     }
 
-    // Start the next round.
+    // Start the next round — reset the per-round claim state.
+    this._claimStarted = false;
+    this._claimedSol = 0;
     this.roundNumber += 1;
     this.roundEndsAt = Date.now() + this.roundLength;
     this._save(); // persist new round number + history so a redeploy resumes, not resets
