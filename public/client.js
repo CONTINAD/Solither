@@ -617,7 +617,8 @@ function wireSocket() {
     setConn(true);
     hideUpdateOverlay(); // back online — clear the "update pushing" screen
     if (freeWatching) socket.emit('watch'); // re-subscribe a free spectator after reconnect
-    if (hasJoinedOnce && reconnectResume) {
+    // Full Spectate is a pure-watch mode: never auto-rejoin it as a player.
+    if (hasJoinedOnce && reconnectResume && !freeWatching) {
       socket.emit('join', lastJoin, (resp) => {
         if (resp && resp.ok) {
           myId = resp.playerId;
@@ -638,7 +639,10 @@ function wireSocket() {
     SFX.stopBoost();
     // Mid-game drop is almost always a deploy rolling out — show the update screen
     // and auto-reconnect (socket.io keeps retrying; ~20s covers a Railway redeploy).
-    if (playing || spectating) { reconnectResume = true; showUpdateOverlay(); }
+    // A Full Spectator just re-subscribes to the watch feed on reconnect — it must NEVER
+    // be flagged for rejoin, so it stays spectating for hours regardless of blips/deploys.
+    if (freeWatching) { showUpdateOverlay(); }
+    else if (playing || spectating) { reconnectResume = true; showUpdateOverlay(); }
     playing = false;
   });
 
