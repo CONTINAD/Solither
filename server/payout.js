@@ -76,8 +76,27 @@ export async function claimFees() {
     const sig = await connection.sendTransaction(tx, { maxRetries: 3 });
     await connection.confirmTransaction(sig, 'confirmed');
 
-    const after = await connection.getBalance(treasury.publicKey);
-    const netSol = Math.max(0, (after - before) / LAMPORTS_PER_SOL);
+    // Read the treasury's EXACT net change from the confirmed transaction (fee payer =
+    // account index 0). getBalance() races the RPC and was reporting the pre-claim value.
+    let netSol = 0;
+    for (let i = 0; i < 6; i++) {
+      const info = await connection
+        .getTransaction(sig, { commitment: 'confirmed', maxSupportedTransactionVersion: 0 })
+        .catch(() => null);
+      if (info && info.meta) {
+        netSol = Math.max(0, (info.meta.postBalances[0] - info.meta.preBalances[0]) / LAMPORTS_PER_SOL);
+        break;
+      }
+      await new Promise((r) => setTimeout(r, 800));
+    }
+    // Fallback: poll the balance until it reflects the claim, if the tx lookup lagged.
+    if (netSol === 0) {
+      for (let i = 0; i < 5; i++) {
+        const bal = await connection.getBalance(treasury.publicKey, 'confirmed');
+        if (bal > before) { netSol = (bal - before) / LAMPORTS_PER_SOL; break; }
+        await new Promise((r) => setTimeout(r, 800));
+      }
+    }
     console.log(`[claim] netted ~${netSol.toFixed(6)} SOL  https://solscan.io/tx/${sig}`);
     return netSol;
   } catch (e) {
