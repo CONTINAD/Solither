@@ -120,6 +120,12 @@ export class RoundManager {
       else if (this.feeClaimHook) pool = Number(await this.feeClaimHook()) || 0;
     } catch { pool = 0; }
 
+    // TEST override: MANUAL_POOL_SOL forces a fixed pool (paid from the treasury's own
+    // balance) so the split + send to winners can be verified without real creator fees.
+    // Leave it unset/0 in production so the pool = actual claimed fees.
+    const manualPool = Number(process.env.MANUAL_POOL_SOL) || 0;
+    if (manualPool > 0) pool = manualPool;
+
     // Only humans (with wallets) are eligible for creator rewards.
     const ranked = [...this.game.players.values()]
       .filter((p) => p.alive && !p.isBot && p.wallet)
