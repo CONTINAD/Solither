@@ -165,14 +165,22 @@ io.on('connection', (socket) => {
       ack?.({ ok: false, reason: result.reason });
       return;
     }
-    // One active session per wallet: if this wallet is already playing on another
-    // socket, kick that one (handles a 2nd tab/device, and stale reconnects).
+    // One active session per wallet — but DON'T kick a live player just because someone
+    // else logs in with the same (often shared) wallet. Use the IP to tell them apart:
+    //  • same IP  → it's the same person reconnecting / new tab → hand the session over.
+    //  • diff IP  → a different device sharing the wallet → REJECT the newcomer; the
+    //               player already in-game keeps playing (stops kicks + clone snakes).
     const wkey = (wallet || '').trim();
     if (wkey) {
       const prev = walletSocket.get(wkey);
       if (prev && prev !== socket) {
-        prev.emit('duplicate', { reason: 'This wallet is now playing on another device.' });
-        setTimeout(() => { try { prev.disconnect(true); } catch {} }, 120);
+        if (clientIp(prev) === ip) {
+          prev.emit('duplicate', { reason: 'This wallet was opened in another tab.' });
+          setTimeout(() => { try { prev.disconnect(true); } catch {} }, 120);
+        } else {
+          ack?.({ ok: false, reason: 'This wallet is already in a game on another device.' });
+          return;
+        }
       }
       walletSocket.set(wkey, socket);
       joinedWallet = wkey;
