@@ -8,8 +8,8 @@ import { config, DEMO_MODE } from './config.js';
 import { verifyWallet, invalidateWallet } from './solana.js';
 import { Game, SIM, SKINS } from './game.js';
 import { RoundManager } from './rewards.js';
-import { recordScore, topScores } from './highscores.js';
-import { rewardsSummary } from './rewardsLedger.js';
+import { recordScore, topScores, resetScores } from './highscores.js';
+import { rewardsSummary, resetLedger } from './rewardsLedger.js';
 import { payoutWinners } from './payout.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -65,6 +65,15 @@ app.get('/api/rewards', (req, res) => {
 const game = new Game();
 const rounds = new RoundManager(game, io);
 rounds.payoutHook = payoutWinners; // sends SOL to winners when PAYOUT_ENABLED (else record-only)
+
+// One-shot wipe of all persisted stats. Set RESET_STATS=1 on the server, deploy once,
+// then set it back to 0 (otherwise every deploy re-wipes).
+if (process.env.RESET_STATS === '1') {
+  resetScores();
+  resetLedger();
+  rounds.resetRounds();
+  console.log('[Solither] RESET_STATS=1 — wiped high scores, rewards ledger, and rounds.');
+}
 
 const socketByPlayerId = new Map(); // playerId -> socket
 const spectating = new Map();       // spectator playerId -> watched targetId (null = auto/leader)

@@ -53,4 +53,10 @@ export function topScores(n = MAX) {
   return scores.slice(0, n);
 }
 
+/** Wipe the high-score board (used by RESET_STATS on boot). */
+export function resetScores() {
+  scores = [];
+  save();
+}
+
 load();

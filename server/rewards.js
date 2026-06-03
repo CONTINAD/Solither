@@ -54,6 +54,14 @@ export class RoundManager {
     }
   }
 
+  /** Reset round counter + history (used by RESET_STATS on boot). */
+  resetRounds() {
+    this.roundNumber = 1;
+    this.history = [];
+    this.roundEndsAt = Date.now() + this.roundLength;
+    this._save();
+  }
+
   msRemaining() {
     return Math.max(0, this.roundEndsAt - Date.now());
   }

@@ -51,6 +51,12 @@ export function recordPayout(entries) {
   if (any) { ledger.rounds += 1; save(); }
 }
 
+/** Wipe the rewards ledger (used by RESET_STATS on boot). */
+export function resetLedger() {
+  ledger = { totalSol: 0, rounds: 0, byWallet: {} };
+  save();
+}
+
 export function rewardsSummary(n = 10) {
   const top = Object.entries(ledger.byWallet)
     .map(([wallet, v]) => ({ wallet, name: v.name, sol: v.sol, wins: v.wins }))
