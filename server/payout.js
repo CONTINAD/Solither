@@ -23,6 +23,10 @@ import { config } from './config.js';
 
 const ENABLED = process.env.PAYOUT_ENABLED === '1';
 const PRIORITY_FEE = Number(process.env.PAYOUT_PRIORITY_FEE) || 0.00005;
+// Hard floor: the treasury is NEVER allowed to drop below this (your principal). If a
+// payout would cross it, the whole payout is skipped. Set TREASURY_RESERVE_SOL to protect
+// your own SOL on top of the "pool = only the claimed fees" guarantee.
+const RESERVE_SOL = Number(process.env.TREASURY_RESERVE_SOL) || 0;
 
 let treasury = null;
 let connection = null;
@@ -111,6 +115,17 @@ export async function claimFees() {
  */
 export async function payoutWinners(winners, round) {
   if (!treasury || !connection) return [];
+
+  // Safety floor: never send if it would drop the treasury below RESERVE_SOL (your
+  // principal) — protects your own SOL on top of "pool = only this round's claimed fees".
+  const totalOut = winners.reduce((s, w) => s + (w.sol > 0 ? w.sol : 0), 0) + 0.0001; // + fee headroom
+  if (totalOut <= 0) return [];
+  const balSol = (await connection.getBalance(treasury.publicKey, 'confirmed')) / LAMPORTS_PER_SOL;
+  if (balSol - totalOut < RESERVE_SOL) {
+    console.error(`[payout] round ${round} SKIPPED — would cross reserve (balance ${balSol.toFixed(4)}, payout ${totalOut.toFixed(4)}, reserve ${RESERVE_SOL}).`);
+    return [];
+  }
+
   const results = [];
   for (const w of winners) {
     if (!w.wallet || !(w.sol > 0)) continue;
