@@ -517,37 +517,89 @@ export class Game {
   }
 
   botThink(p) {
-    // Brain-dead bots (filler until launch): no hunting, no dodging — they just
-    // wander aimlessly and occasionally amble toward a nearby pellet. Trivial to kill.
+    // Average-skill filler: forages with some purpose, takes the odd boost, avoids the
+    // wall and obvious head-on bodies — but doesn't hunt, dodges imperfectly, and plateaus
+    // at a moderate size (BOT_SOFT_CAP) so it never dominates the board or takes rewards.
+    const BOT_SOFT_CAP = 140;
 
-    // Only smarts they keep: don't faceplant the lethal wall. Turn back near the edge.
-    if (Math.hypot(p.x, p.y) > WORLD.radius * 0.82) {
-      p.targetAngle = Math.atan2(-p.y, -p.x) + rand(-0.3, 0.3);
+    // 1) Don't faceplant the lethal ring (adapts to the shrinking Death Match radius).
+    if (Math.hypot(p.x, p.y) > this.playRadius * 0.8) {
+      p.targetAngle = Math.atan2(-p.y, -p.x) + rand(-0.25, 0.25);
       p._wander = p.targetAngle;
       p.boosting = false;
       return;
     }
 
-    // Occasionally drift toward a close pellet (lazily — short sight, low chance).
-    if (this.tick % 12 === 0 && Math.random() < 0.5) {
-      let best = null, bestD = 220 * 220;
-      for (const f of this.food) {
-        const d = dist2(p.x, p.y, f.x, f.y);
-        if (d < bestD) { bestD = d; best = f; }
+    // 2) Light obstacle sense — veer if another snake's body is right ahead. Cheap and
+    //    imperfect (average reflexes, not perfect dodging), checked a few times a second.
+    if (this.tick % 4 === 0) {
+      const hx = p.x + Math.cos(p.angle) * 90, hy = p.y + Math.sin(p.angle) * 90;
+      for (const o of this.players.values()) {
+        if (o.id === p.id || !o.alive) continue;
+        if (Math.abs(o.x - p.x) > 260 || Math.abs(o.y - p.y) > 260) continue;
+        for (let i = 6; i < o.trail.length; i += 14) {
+          const s = o.trail[i];
+          if (dist2(hx, hy, s.x, s.y) < 60 * 60) {
+            p.targetAngle = p.angle + (Math.random() < 0.5 ? 1 : -1) * (0.6 + Math.random() * 0.5);
+            p._wander = p.targetAngle;
+            p.boosting = false;
+            return;
+          }
+        }
       }
-      if (best) p._wander = Math.atan2(best.y - p.y, best.x - p.x);
     }
 
-    // Otherwise just meander. No reaction to other snakes at all.
-    if (this.tick % 15 === 0 || Math.random() < 0.04) p._wander += rand(-0.6, 0.6);
+    // 3) Past the soft cap → stop grinding, just cruise so it plateaus mid-pack.
+    if (p.length > BOT_SOFT_CAP) {
+      if (this.tick % 20 === 0 || Math.random() < 0.03) p._wander += rand(-0.5, 0.5);
+      p.targetAngle = p._wander;
+      p.boosting = false;
+      return;
+    }
+
+    // 4) Forage: steer toward the best nearby food (value-weighted, prefer +5 orbs).
+    if (this.tick % 8 === 0) {
+      let best = null, bestScore = -Infinity;
+      const SIGHT2 = 560 * 560;
+      for (const f of this.food) {
+        const d = dist2(p.x, p.y, f.x, f.y);
+        if (d > SIGHT2) continue;
+        const score = (f.orb ? 4 : f.value) * 1e6 - d; // worth-it & nearer = better
+        if (score > bestScore) { bestScore = score; best = f; }
+      }
+      if (best) {
+        p._wander = Math.atan2(best.y - p.y, best.x - p.x);
+        // Occasionally sprint for a worthwhile, slightly-far morsel — average, not sweaty.
+        p.boosting = p.length > MIN_BOOST_LENGTH
+          && dist2(p.x, p.y, best.x, best.y) > 240 * 240 && Math.random() < 0.18;
+      } else {
+        p.boosting = false;
+      }
+    }
+
+    // 5) Meander between decisions.
+    if (this.tick % 16 === 0 || Math.random() < 0.03) p._wander += rand(-0.5, 0.5);
     p.targetAngle = p._wander;
-    p.boosting = false;
   }
 
   botName() {
-    const a = ['Degen', 'Whale', 'Ser', 'Anon', 'Chad', 'Frog', 'Bonk', 'Sol', 'Gm', 'Wagmi', 'Ngmi', 'Ape'];
-    const b = ['Maxi', 'Bot', 'Snek', 'Slug', 'King', 'Fren', 'Pump', '420', '69', 'XBT', 'Moon'];
-    return a[Math.floor(Math.random() * a.length)] + b[Math.floor(Math.random() * b.length)];
+    // Realistic player-style handles — deliberately NOT obvious bots (no "bot"/"snek" tells).
+    // Picks one not already in use so the filler crowd never shows duplicate names.
+    const pool = [
+      'mooncat', 'jpegjay', 'soldegen', '0xmilo', 'baggz', 'wenlambo', 'frogprince', 'gwei',
+      'lowcapgem', 'sendit', 'apexx', 'rugsurvivor', 'hodlr', 'tetsuo', 'kaito', 'nullbyte',
+      'sol_sniper', 'dingaling', 'beanstalk', 'vinto', 'zksam', 'maxbid', 'degenjoe', 'liqd',
+      'fomofred', 'satoshilite', 'chadwick', 'orbiter', 'greenwojak', 'bonkboy', 'snipez',
+      'wagmiwill', 'lasercat', 'solstice', 'dexter', 'probly_nothing', 'anonymoose', 'jeffrey',
+      'tendies', 'gigabrain', 'pumpkin', 'voidwalker', 'mistr_e', 'koda', 'rin', 'blkswan',
+    ];
+    for (let i = 0; i < 10; i++) {
+      const n = pool[Math.floor(Math.random() * pool.length)];
+      let taken = false;
+      for (const p of this.players.values()) if (p.name === n) { taken = true; break; }
+      if (!taken) return n;
+    }
+    return pool[Math.floor(Math.random() * pool.length)];
   }
 
   // Build a snapshot to send to a particular player (culled to their view).
@@ -646,7 +698,9 @@ export class Game {
       .filter((p) => p.alive)
       .sort((a, b) => b.score - a.score)
       .slice(0, n)
-      .map((p) => ({ id: p.id, name: p.name, score: p.score, isBot: p.isBot, wallet: p.wallet }));
+      // NOTE: deliberately do NOT expose isBot — filler bots should be indistinguishable
+      // from real players on the wire (no bot tag anywhere on the client).
+      .map((p) => ({ id: p.id, name: p.name, score: p.score, wallet: p.wallet }));
   }
 
   get tickRate() { return TICK_RATE; }

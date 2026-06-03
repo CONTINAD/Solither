@@ -795,7 +795,7 @@ function updateLeaderboard(lb) {
     if (i < serverConfig.rewardTopN) li.classList.add('top3');
     li.innerHTML =
       `<span class="rank">${i + 1}</span>` +
-      `<span class="nm">${escapeHtml(p.name)}${p.isBot ? ' 🤖' : ''}</span>` +
+      `<span class="nm">${escapeHtml(p.name)}</span>` +
       `<span class="sc">${p.score}</span>`;
     list.appendChild(li);
   });
