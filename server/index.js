@@ -78,6 +78,7 @@ if (process.env.RESET_STATS === '1') {
 
 const socketByPlayerId = new Map(); // playerId -> socket
 const spectating = new Map();       // spectator playerId -> watched targetId (null = auto/leader)
+const walletSocket = new Map();     // wallet -> socket (enforces one active session per wallet)
 
 game.onDeath = (player, cause, killer) => {
   // Global kill-feed event for collision kills (includes bots — it's fun to read).
@@ -113,6 +114,7 @@ game.onDeath = (player, cause, killer) => {
 // ── Socket handling ──────────────────────────────────────────
 io.on('connection', (socket) => {
   let playerId = null;
+  let joinedWallet = null; // wallet this socket joined with (for one-session-per-wallet cleanup)
 
   // ── Per-socket rate limiting ──
   let inputCount = 0, inputWindow = Date.now();
@@ -136,9 +138,21 @@ io.on('connection', (socket) => {
       ack?.({ ok: false, reason: result.reason });
       return;
     }
+    // One active session per wallet: if this wallet is already playing on another
+    // socket, kick that one (handles a 2nd tab/device, and stale reconnects).
+    const wkey = (wallet || '').trim();
+    if (wkey) {
+      const prev = walletSocket.get(wkey);
+      if (prev && prev !== socket) {
+        prev.emit('duplicate', { reason: 'This wallet is now playing on another device.' });
+        setTimeout(() => { try { prev.disconnect(true); } catch {} }, 120);
+      }
+      walletSocket.set(wkey, socket);
+      joinedWallet = wkey;
+    }
     const player = game.addPlayer({
       name: name,
-      wallet: (wallet || '').trim() || null,
+      wallet: wkey || null,
       socketId: socket.id,
       color,
     });
@@ -186,6 +200,9 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
+    // Release this wallet's session lock only if we still hold it (not if it was
+    // already taken over by a newer socket for the same wallet).
+    if (joinedWallet && walletSocket.get(joinedWallet) === socket) walletSocket.delete(joinedWallet);
     if (playerId != null) {
       socketByPlayerId.delete(playerId);
       spectating.delete(playerId);

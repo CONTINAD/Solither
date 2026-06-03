@@ -498,6 +498,10 @@ function wireSocket() {
     // Server kicked us — wallet no longer holds enough tokens. Back to lobby, no auto-rejoin.
     sendToLobbyWithError((info && info.reason) || 'You no longer hold enough tokens to play.');
   });
+  socket.on('duplicate', (info) => {
+    // This wallet joined elsewhere — only one session per wallet allowed.
+    sendToLobbyWithError((info && info.reason) || 'This wallet is already playing on another device.');
+  });
 
   // Creator-fee claim → payout flow (fires ~10s before round end).
   socket.on('claiming', () => {
