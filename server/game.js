@@ -89,6 +89,18 @@ export function sanitizeName(raw) {
 
 function rand(min, max) { return min + Math.random() * (max - min); }
 function dist2(ax, ay, bx, by) { const dx = ax - bx, dy = ay - by; return dx * dx + dy * dy; }
+// Squared distance from point (px,py) to the line SEGMENT a→b. Lets collision treat a
+// snake's body as a continuous capsule chain instead of isolated dots, so a fast head can
+// never thread the gap between two body samples (the old "passing through people" bug).
+function segPointDist2(px, py, ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay;
+  const len2 = dx * dx + dy * dy;
+  if (len2 === 0) return dist2(px, py, ax, ay); // degenerate segment = a point
+  let t = ((px - ax) * dx + (py - ay) * dy) / len2;
+  t = t < 0 ? 0 : (t > 1 ? 1 : t); // clamp the foot of the perpendicular onto the segment
+  const cx = ax + t * dx, cy = ay + t * dy;
+  return dist2(px, py, cx, cy);
+}
 function angWrap(a) { while (a > Math.PI) a -= Math.PI * 2; while (a < -Math.PI) a += Math.PI * 2; return a; }
 function clampToWorld(x, y) {
   const d = Math.hypot(x, y);
@@ -362,25 +374,32 @@ export class Game {
   }
 
   handleCollisions() {
-    // Spatial hash grid broad-phase: bucket every snake's body points, then test
-    // each head only against points in its own + adjacent cells. Turns the old
-    // O(snakes × all-segments) sweep into ~O(total-segments) so it scales to many players.
-    // CELL must exceed the max collision distance (headR + bodyR ≈ 58) so a 3×3 query is complete.
-    const CELL = 120;
+    // Spatial hash grid broad-phase: bucket every snake's body as a chain of SEGMENTS
+    // (consecutive trail-point pairs), then test each head's distance to the segments in
+    // its own + adjacent cells. Treating the body as continuous segments — not isolated
+    // dots — means a fast/boosting head can't slip through the gap between two samples
+    // (that gap grew to ~37u at boost speed and was the "passing through people" bug).
+    // CELL must exceed maxHitDist (≈58) + maxSegLen (≈23) so a 3×3 query is complete.
+    const CELL = 150;
+    const STEP = 3;  // trail points per collision segment — dense enough that segments chain solid
+    const SKIP = 3;  // skip the few points right behind the head (head bulge / head-on grace)
     const now = Date.now();
     const alive = [...this.players.values()].filter((p) => p.alive);
 
-    const grid = new Map(); // "cx,cy" -> [{ x, y, owner, r }]
+    const grid = new Map(); // "cx,cy" -> [{ ax, ay, bx, by, owner, r }]
     for (const o of alive) {
       if (now < (o.immuneUntil || 0)) continue; // immune snakes' bodies are intangible
       const oR = this.bodyRadius(o);
-      const samples = o.trail;
-      for (let i = 6; i < samples.length; i += SEGMENT_EVERY) {
-        const s = samples[i];
-        const k = Math.floor(s.x / CELL) + ',' + Math.floor(s.y / CELL);
+      const t = o.trail;
+      for (let i = SKIP; i + STEP < t.length; i += STEP) {
+        const a = t[i], b = t[i + STEP];
+        const seg = { ax: a.x, ay: a.y, bx: b.x, by: b.y, owner: o.id, r: oR };
+        // Bucket by the segment's first point; segments are short (≤~23u) so a head within
+        // hit range always lands in this cell or an adjacent one (covered by the 3×3 query).
+        const k = Math.floor(a.x / CELL) + ',' + Math.floor(a.y / CELL);
         let arr = grid.get(k);
         if (!arr) grid.set(k, (arr = []));
-        arr.push({ x: s.x, y: s.y, owner: o.id, r: oR });
+        arr.push(seg);
       }
     }
 
@@ -397,7 +416,7 @@ export class Game {
           for (const s of arr) {
             if (s.owner === p.id) continue; // no self-collision
             const hitDist = headR + s.r;
-            if (dist2(p.x, p.y, s.x, s.y) <= hitDist * hitDist) {
+            if (segPointDist2(p.x, p.y, s.ax, s.ay, s.bx, s.by) <= hitDist * hitDist) {
               this.kill(p, 'collision', this.players.get(s.owner));
               dead = true;
               break;

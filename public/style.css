@@ -58,6 +58,20 @@ canvas#game {
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.03) inset;
 }
 
+/* Death Match start flash — a hard red pulse so you instantly know it kicked off */
+#dmFlash {
+  position: fixed; inset: 0; z-index: 64; pointer-events: none; opacity: 0;
+  background: radial-gradient(circle at center, rgba(255,77,109,0) 30%, rgba(255,77,109,0.65) 100%);
+}
+#dmFlash.flash { animation: dmFlash 1.5s ease-out; }
+@keyframes dmFlash {
+  0% { opacity: 0; }
+  10% { opacity: 1; }
+  35% { opacity: 0.55; }
+  60% { opacity: 0.8; }
+  100% { opacity: 0; }
+}
+
 /* Death Match banner */
 #dmOverlay {
   position: fixed; left: 0; right: 0; top: 14%; z-index: 65;

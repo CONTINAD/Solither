@@ -67,6 +67,13 @@ const SFX = (() => {
       ensure();
       [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => blip(f, 0.2, 'square', 0.2), i * 110));
     },
+    deathMatch() {
+      ensure();
+      // Ominous battle-royale klaxon: a low boom, alternating alarm horns, then a rising sweep.
+      blip(110, 0.6, 'sawtooth', 0.34, 80);
+      [0, 1, 2, 3].forEach((i) => setTimeout(() => blip(i % 2 ? 196 : 262, 0.2, 'square', 0.24), 260 + i * 200));
+      setTimeout(() => blip(330, 0.9, 'sawtooth', 0.3, 880), 1120);
+    },
     startBoost() {
       // Boost is silent for now (the buzz and the turbo both sounded bad). No-op.
     },
@@ -580,9 +587,10 @@ function wireSocket() {
   // ── Death Match ──
   socket.on('deathMatchStart', () => {
     dmActive = true;
-    SFX.death(); // sharp sting to mark the shift
+    SFX.deathMatch();   // ominous klaxon — unmistakable audio cue
+    flashDeathMatch();  // hard red screen flash
     showDmBanner('☠️ DEATH MATCH',
-      'Last snake alive wins the WHOLE pot — the ring is closing in, stay inside it!', 5200);
+      'Last snake alive wins the WHOLE pot — the ring is closing in, stay inside it!', 6000);
     if (playing || spectating) showToast('⚔️ Death Match! No respawns — last snake standing takes it all.');
     // If we're sitting on the death screen when the DM kicks off, we didn't make the
     // cut — slide into spectate instead of staring at a Respawn button that won't work.
@@ -743,6 +751,11 @@ function updateRoundUI(round) {
     // During a Death Match the round pill shows the mode, not a countdown.
     $('roundTimer').textContent = '☠️ LAST SNAKE';
     $('roundPill').classList.add('urgent');
+    // Keep the red danger vignette glowing for the whole match (auto-pulsed in the rAF loop),
+    // so it's always obvious you're in a Death Match — not a normal round.
+    const inGame = !$('hud').classList.contains('hidden');
+    const vig = $('urgentVignette');
+    if (vig) vig.classList.toggle('hidden', !inGame);
     return;
   }
   const sec = Math.ceil(round.msRemaining / 1000);
@@ -880,6 +893,14 @@ function showToast(msg) {
   t.classList.add('show');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.classList.remove('show'), 4000);
+}
+
+function flashDeathMatch() {
+  const f = $('dmFlash');
+  if (!f) return;
+  f.classList.remove('flash');
+  void f.offsetWidth; // reflow so the animation restarts even on back-to-back triggers
+  f.classList.add('flash');
 }
 
 let dmBannerTimer = null;
