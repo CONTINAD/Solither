@@ -116,6 +116,7 @@ export class RoundManager {
       topN: this.topN,
       deathMatch: this.dmActive,
       chaos: this.chaosActive,
+      chaosMsLeft: this.chaosActive ? Math.max(0, this.chaosUntil - Date.now()) : 0,
       lastWinners: this.history.length ? this.history[this.history.length - 1].winners : [],
     };
   }
@@ -345,8 +346,8 @@ export class RoundManager {
   startChaos() {
     this.chaosActive = true;
     this.chaosUntil = Date.now() + CHAOS_MS;
-    this.game.chaosMode = true;       // step() starts trickling power-ups in
-    this.game.powerups = [];          // fresh field of pickups
+    this.game.chaosMode = true;       // step() tops the field up as pickups get grabbed
+    this.game.seedPowerups();         // flood the map with power-ups RIGHT NOW
     // No arena reset and no payout — players keep their snakes and just grab power-ups.
     this.io.emit('chaosStart', { durationMs: CHAOS_MS });
     console.log(`[Solither] 🌀  CHAOS MODE — power-ups everywhere for ${Math.round(CHAOS_MS / 1000)}s.`);

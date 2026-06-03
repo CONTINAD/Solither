@@ -803,8 +803,10 @@ function updateRoundUI(round) {
     return;
   }
   if (chaosActive) {
-    // Chaos Mode: flashing badge + pill the whole time so it's clearly a special mode.
-    $('roundTimer').textContent = '🌀 CHAOS';
+    // Chaos Mode: flashing badge + a live countdown of the remaining chaos time.
+    const left = Math.max(0, Math.ceil((round.chaosMsLeft || 0) / 1000));
+    const cm = Math.floor(left / 60), cs = left % 60;
+    $('roundTimer').textContent = `🌀 ${cm}:${String(cs).padStart(2, '0')}`;
     $('roundPill').classList.add('urgent', 'chaos');
     $('roundPill').classList.remove('dm');
     $('chaosLiveBadge').classList.toggle('hidden', !inGame);

@@ -54,8 +54,10 @@ const POWERUP_DUR = {            // effect duration (ms); shield lasts until con
 };
 const PU_SPEED_MULT = 1.55;      // speed power-up multiplier
 const PU_MAGNET_R = 200;         // magnet auto-eat radius
-const CHAOS_PU_TARGET = 26;      // how many pickups to keep on the map during Chaos
-const CHAOS_PU_SPAWN_EVERY = 8;  // trickle a new one in every N ticks until at target
+// Power-ups blanket the map during Chaos. The viewport only covers ~6% of the arena, so
+// the target is high on purpose — enough that a dozen are always on your screen.
+const CHAOS_PU_TARGET = 220;     // how many pickups to keep on the map during Chaos
+const CHAOS_PU_SPAWN_EVERY = 2;  // fast top-up as they get grabbed
 
 let nextId = 1;
 // Snake skin palette — also exposed to the client via /api/config so the
@@ -149,6 +151,12 @@ export class Game {
     const r = Math.sqrt(Math.random()) * (this.playRadius * 0.9);
     const type = POWERUP_TYPES[Math.floor(Math.random() * POWERUP_TYPES.length)];
     this.powerups.push({ x: Math.cos(a) * r, y: Math.sin(a) * r, type, r: 14 });
+  }
+
+  // Flood the arena with power-ups at the start of Chaos so they're everywhere immediately.
+  seedPowerups() {
+    this.powerups = [];
+    for (let i = 0; i < CHAOS_PU_TARGET; i++) this.spawnPowerup();
   }
 
   // Tear down Chaos Mode: drop all pickups and clear everyone's active effects.
