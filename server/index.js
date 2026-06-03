@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url';
 
 import { config, DEMO_MODE } from './config.js';
 import { verifyWallet, invalidateWallet } from './solana.js';
-import { Game, SIM, SKINS } from './game.js';
+import { Game, SIM, ALL_SKINS } from './game.js';
 import { RoundManager } from './rewards.js';
 import { recordScore, topScores, resetScores } from './highscores.js';
 import { rewardsSummary, resetLedger } from './rewardsLedger.js';
@@ -44,7 +44,7 @@ app.get('/api/config', (req, res) => {
     rewardTopN: config.rewardTopN,
     maxPlayers: config.maxPlayers,
     sim: SIM,
-    skins: SKINS,
+    skins: ALL_SKINS,
   });
 });
 
@@ -153,7 +153,7 @@ io.on('connection', (socket) => {
     return false;
   };
 
-  socket.on('join', async ({ wallet, name, color }, ack) => {
+  socket.on('join', async ({ wallet, name, color, skin }, ack) => {
     if (onCooldown('join', 1000)) { ack?.({ ok: false, reason: 'Slow down a moment and try again.' }); return; }
     // Capacity guard — keep the arena within the configured player cap.
     if (playerId == null && socketByPlayerId.size >= config.maxPlayers) {
@@ -182,6 +182,7 @@ io.on('connection', (socket) => {
       wallet: wkey || null,
       socketId: socket.id,
       color,
+      skin,
     });
     playerId = player.id;
     socketByPlayerId.set(playerId, socket);

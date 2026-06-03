@@ -105,7 +105,16 @@ let playing = false;
 let lastJoin = null;        // { name, wallet } — for auto re-join on reconnect
 let hasJoinedOnce = false;
 let reconnectResume = false; // were we in-world when the connection dropped?
-let selectedSkin = localStorage.getItem('solither_skin') || null;
+// A skin is { color, emoji|null }. (Legacy stored a plain colour string.)
+let selectedSkin = (() => {
+  try {
+    const raw = localStorage.getItem('solither_skin');
+    if (!raw) return null;
+    if (raw[0] === '{') return JSON.parse(raw);
+    return { color: raw, emoji: null };
+  } catch { return null; }
+})();
+function saveSkin(s) { try { localStorage.setItem('solither_skin', JSON.stringify(s)); } catch {} }
 
 // Player settings (persisted). Sound is governed by SFX (solither_muted).
 const settings = {
@@ -132,6 +141,7 @@ const pred = {
   name: 'You',
   serverX: 0, serverY: 0,
   immune: false,      // brief spawn/reset immunity (mirrors server me.immune)
+  skin: null,         // character head emoji (if a character skin is selected)
 };
 
 // ── Input ────────────────────────────────────────────────────
@@ -246,18 +256,23 @@ function renderHighScores(list) {
 function buildSkinPicker(skins) {
   const wrap = $('skinPicker');
   if (!wrap || !skins.length) return;
-  if (!skins.includes(selectedSkin)) selectedSkin = skins[0];
+  // skins: [{color}, …, {color, emoji, name}]. Normalize legacy string entries.
+  skins = skins.map((s) => (typeof s === 'string' ? { color: s } : s));
+  const matches = (a, b) => a && b && a.color === b.color && (a.emoji || null) === (b.emoji || null);
+  if (!selectedSkin || !skins.some((s) => matches(s, selectedSkin))) selectedSkin = skins[0];
   wrap.innerHTML = '';
-  for (const c of skins) {
+  for (const s of skins) {
+    const isChar = !!s.emoji;
     const sw = document.createElement('div');
-    sw.className = 'swatch' + (c === selectedSkin ? ' sel' : '');
-    sw.style.background = c;
-    sw.style.color = c; // for the glow (currentColor)
-    sw.title = c;
+    sw.className = 'swatch' + (isChar ? ' char' : '') + (matches(s, selectedSkin) ? ' sel' : '');
+    sw.style.background = s.color;
+    sw.style.color = s.color; // for the glow (currentColor)
+    sw.title = s.name || s.color;
+    if (isChar) sw.textContent = s.emoji;
     sw.addEventListener('click', () => {
-      selectedSkin = c;
-      localStorage.setItem('solither_skin', c);
-      wrap.querySelectorAll('.swatch').forEach((s) => s.classList.remove('sel'));
+      selectedSkin = { color: s.color, emoji: s.emoji || null };
+      saveSkin(selectedSkin);
+      wrap.querySelectorAll('.swatch').forEach((x) => x.classList.remove('sel'));
       sw.classList.add('sel');
     });
     wrap.appendChild(sw);
@@ -331,14 +346,15 @@ async function join() {
 function resetBtn() { const b = $('playBtn'); b.disabled = false; b.textContent = 'PLAY'; }
 
 function connectAndJoin(name, wallet) {
-  lastJoin = { name, wallet, color: selectedSkin };
+  lastJoin = { name, wallet, color: selectedSkin && selectedSkin.color, skin: selectedSkin && selectedSkin.emoji };
   if (!socket) { socket = io(); wireSocket(); }
   socket.emit('join', lastJoin, (resp) => {
     if (!resp || !resp.ok) { $('joinError').textContent = (resp && resp.reason) || 'Could not join.'; resetBtn(); return; }
     myId = resp.playerId;
     world = resp.world || world;
     pred.name = name;
-    if (selectedSkin) pred.color = selectedSkin;
+    if (selectedSkin && selectedSkin.color) pred.color = selectedSkin.color;
+    pred.skin = (selectedSkin && selectedSkin.emoji) || null;
     pred.active = false;
     prevLen = null;
     buffer.length = 0;
@@ -370,7 +386,7 @@ function hideUpdateOverlay() {
 function populatePlayerBadge() {
   const badge = $('playerBadge');
   if (!badge || !lastJoin) return;
-  const c = selectedSkin || pred.color;
+  const c = (selectedSkin && selectedSkin.color) || pred.color;
   const dot = $('pbDot');
   if (dot) { dot.style.background = c; dot.style.color = c; }
   $('pbName').textContent = lastJoin.name || 'You';
@@ -1036,7 +1052,7 @@ function interpolatedSnakes() {
     for (let i = n; i < b.segs.length; i++) segs.push(b.segs[i]);
     out.push({
       id, name: b.name, color: b.color, r: b.r, score: b.score, boosting: b.boosting,
-      immune: b.immune,
+      immune: b.immune, sk: b.sk,
       x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f,
       a: angLerp(a.a, b.a, f), segs,
     });
@@ -1105,14 +1121,14 @@ function render(now) {
 
   for (const sn of remotes) {
     if (sn.immune) ctx.globalAlpha = 0.45 + 0.25 * Math.sin(performance.now() / 120);
-    drawSnake(sn.segs, sn.x, sn.y, sn.a, sn.r, sn.color, sn.name, sn.boosting);
+    drawSnake(sn.segs, sn.x, sn.y, sn.a, sn.r, sn.color, sn.name, sn.boosting, sn.sk);
     ctx.globalAlpha = 1;
     if (sn.immune) drawShield(sn.x, sn.y, sn.r);
     if (sn.id === crownId) drawCrown(sn.x, sn.y, sn.r);
   }
   if (pred.active) {
     if (pred.immune) ctx.globalAlpha = 0.5 + 0.25 * Math.sin(performance.now() / 120);
-    drawSnake(pred.trail.map((p) => [p.x, p.y]), pred.x, pred.y, pred.a, bodyRadius(pred.length), pred.color, pred.name, isBoosting);
+    drawSnake(pred.trail.map((p) => [p.x, p.y]), pred.x, pred.y, pred.a, bodyRadius(pred.length), pred.color, pred.name, isBoosting, pred.skin);
     ctx.globalAlpha = 1;
     if (pred.immune) drawShield(pred.x, pred.y, bodyRadius(pred.length));
     if (myId === crownId) drawCrown(pred.x, pred.y, bodyRadius(pred.length));
@@ -1246,7 +1262,7 @@ function drawFood() {
 }
 
 // One stroked tube + one inner highlight + head + eyes + name.
-function drawSnake(points, hx, hy, a, r, color, name, isBoost) {
+function drawSnake(points, hx, hy, a, r, color, name, isBoost, skin) {
   if (!points || points.length < 2) {
     // Just a head dot.
     ctx.fillStyle = color;
@@ -1288,7 +1304,16 @@ function drawSnake(points, hx, hy, a, r, color, name, isBoost) {
   ctx.fillStyle = color;
   ctx.beginPath(); ctx.arc(hx, hy, r * 1.06, 0, Math.PI * 2); ctx.fill();
   ctx.shadowBlur = 0;
-  drawEyes(hx, hy, a, r);
+  if (skin) {
+    // Character skin: draw the emoji "face" big on the head.
+    ctx.font = `${Math.round(r * 2.4)}px "Segoe UI Emoji", "Apple Color Emoji", serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(skin, hx, hy);
+    ctx.textBaseline = 'alphabetic';
+  } else {
+    drawEyes(hx, hy, a, r);
+  }
 
   // Name
   ctx.fillStyle = 'rgba(255,255,255,0.85)';

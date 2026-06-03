@@ -52,6 +52,27 @@ export const SKINS = [
 ];
 const colors = SKINS;
 
+// Italian Brainrot character skins — themed body colour + an emoji "face" on the head.
+export const CHARACTER_SKINS = [
+  { name: 'Tung Tung Tung Sahur', color: '#9A6B3F', emoji: '🪵' },
+  { name: 'Tralalero Tralala', color: '#2E86DE', emoji: '🦈' },
+  { name: 'Bombardiro Crocodilo', color: '#4B6F2C', emoji: '🐊' },
+  { name: 'Lirilì Larilà', color: '#7FA650', emoji: '🌵' },
+  { name: 'Ballerina Cappuccina', color: '#D9A679', emoji: '🩰' },
+  { name: 'Chimpanzini Bananini', color: '#F2C14E', emoji: '🍌' },
+  { name: 'Brr Brr Patapim', color: '#6B8E5A', emoji: '🌳' },
+  { name: 'Boneca Ambalabu', color: '#3FAE5A', emoji: '🐸' },
+  { name: 'Trippi Troppi', color: '#FF7AB6', emoji: '🦐' },
+  { name: 'Bombombini Gusini', color: '#C0C7CF', emoji: '🪿' },
+];
+const CHAR_BY_EMOJI = new Map(CHARACTER_SKINS.map((c) => [c.emoji, c]));
+
+// Combined list sent to the client picker: plain colours + characters.
+export const ALL_SKINS = [
+  ...SKINS.map((c) => ({ color: c })),
+  ...CHARACTER_SKINS,
+];
+
 // Basic, tasteful profanity mask (case-insensitive). Names are also HTML-escaped client-side.
 const PROFANITY = [/fuck/gi, /shit/gi, /cunt/gi, /bitch/gi, /asshole/gi, /\bnigg(er|a)\b/gi, /faggot/gi, /retard/gi];
 
@@ -126,7 +147,7 @@ export class Game {
     return best || { x: 0, y: 0 };
   }
 
-  addPlayer({ name, wallet, isBot = false, socketId = null, color = null }) {
+  addPlayer({ name, wallet, isBot = false, socketId = null, color = null, skin = null }) {
     const id = nextId++;
     const { x, y } = this.randomSpawnPoint();
     const angle = rand(0, Math.PI * 2);
@@ -134,6 +155,10 @@ export class Game {
     for (let i = 0; i < START_LENGTH; i++) {
       trail.push({ x: x - Math.cos(angle) * i * POINT_SPACING, y: y - Math.sin(angle) * i * POINT_SPACING });
     }
+    // Resolve skin: a known character emoji themes the body + adds a head face; otherwise
+    // honor a palette colour; otherwise a default by id.
+    const ch = skin && CHAR_BY_EMOJI.get(skin);
+    const bodyColor = ch ? ch.color : ((color && colors.includes(color)) ? color : colors[id % colors.length]);
     const player = {
       id,
       name: sanitizeName(name),
@@ -147,8 +172,8 @@ export class Game {
       score: 0,
       boosting: false,
       alive: true,
-      // Honor a client-requested skin, but only if it's a known palette color.
-      color: (color && colors.includes(color)) ? color : colors[id % colors.length],
+      color: bodyColor,
+      skin: ch ? ch.emoji : null, // head emoji for character skins
       radius: 12,
       // stats
       kills: 0,
@@ -518,6 +543,7 @@ export class Game {
         a: Number(p.angle.toFixed(2)),
         immune: Date.now() < (p.immuneUntil || 0),
         segs,
+        ...(p.skin ? { sk: p.skin } : {}),
       });
     }
 
