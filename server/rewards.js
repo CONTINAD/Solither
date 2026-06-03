@@ -40,7 +40,8 @@ export class RoundManager {
     this.payoutHook = null;   // async (winners, round) => results — sends SOL to winners
     this.feeClaimHook = null; // async () => SOL netted in — claims pump.fun creator fees
     this._claimStarted = false;
-    this._claimedSol = 0;     // creator fees claimed for the CURRENT round (= the pool)
+    this._claimPromise = null; // resolves to the SOL claimed this round (= the pool)
+    this._ending = false;      // re-entry guard while endRound() awaits the claim
     this._load(); // resume round number + recent history across restarts
   }
 
@@ -86,38 +87,46 @@ export class RoundManager {
   tick() {
     const now = Date.now();
     const msLeft = this.roundEndsAt - now;
-    // ~10s before the end, kick off the creator-fee claim so the SOL is in the
-    // treasury before payouts compute.
+    // ~10s before the end, START the creator-fee claim. Keep the PROMISE so endRound
+    // can AWAIT it — its result (SOL netted in) is this round's pool.
     if (!this._claimStarted && this.feeClaimHook && msLeft > 0 && msLeft <= CLAIM_LEAD_MS) {
       this._claimStarted = true;
-      this._runClaim();
+      this.io.emit('claiming', { round: this.roundNumber }); // client shows "claiming rewards…"
+      this._claimPromise = Promise.resolve()
+        .then(() => this.feeClaimHook())
+        .then((sol) => {
+          const s = Number(sol) || 0;
+          this.io.emit('claimed', { round: this.roundNumber, sol: s });
+          console.log(`[Solither] Round ${this.roundNumber} claim → ${s.toFixed(6)} SOL pool.`);
+          return s;
+        })
+        .catch((e) => { console.error('[rewards] claim failed:', e.message); return 0; });
     }
-    if (now >= this.roundEndsAt) this.endRound();
+    // End the round once. endRound is async now — guard against re-entry while it awaits.
+    if (now >= this.roundEndsAt && !this._ending) {
+      this._ending = true;
+      Promise.resolve(this.endRound())
+        .catch((e) => console.error('[rewards] endRound failed:', e.message))
+        .finally(() => { this._ending = false; });
+    }
   }
 
-  async _runClaim() {
-    this.io.emit('claiming', { round: this.roundNumber }); // client shows "claiming rewards…"
+  async endRound() {
+    // The pool = creator fees claimed this round. WAIT for the claim to finish so the
+    // SOL is actually in the treasury and payouts use the real amount (0 if none / off).
+    let pool = 0;
     try {
-      this._claimedSol = Number(await this.feeClaimHook()) || 0;
-    } catch (e) {
-      console.error('[rewards] fee claim failed:', e.message);
-      this._claimedSol = 0;
-    }
-    this.io.emit('claimed', { round: this.roundNumber, sol: this._claimedSol });
-    console.log(`[Solither] Round ${this.roundNumber} claim → ${this._claimedSol.toFixed(6)} SOL pool.`);
-  }
+      if (this._claimPromise) pool = Number(await this._claimPromise) || 0;
+      else if (this.feeClaimHook) pool = Number(await this.feeClaimHook()) || 0;
+    } catch { pool = 0; }
 
-  endRound() {
     // Only humans (with wallets) are eligible for creator rewards.
     const ranked = [...this.game.players.values()]
       .filter((p) => p.alive && !p.isBot && p.wallet)
       .sort((a, b) => b.score - a.score)
       .slice(0, this.topN);
 
-    // The pool is EXACTLY the creator fees claimed this round (0 if none / payout off).
     // Each rank gets a fixed % (35/25/15/10/5); the unused 10% is the creator's cut.
-    const pool = this._claimedSol || 0;
-
     const winners = ranked.map((p, i) => ({
       rank: i + 1,
       name: p.name,
@@ -169,7 +178,7 @@ export class RoundManager {
 
     // Start the next round — reset the per-round claim state.
     this._claimStarted = false;
-    this._claimedSol = 0;
+    this._claimPromise = null;
     this.roundNumber += 1;
     this.roundEndsAt = Date.now() + this.roundLength;
     this._save(); // persist new round number + history so a redeploy resumes, not resets
