@@ -50,7 +50,8 @@ const SPAWN_IMMUNITY_MS = 3000;  // brief collision immunity on spawn / respawn 
 // Order is the wire index (client maps index → look). Keep in sync with the client.
 const POWERUP_TYPES = ['speed', 'shield', 'magnet', 'multi', 'phase', 'ghost'];
 const POWERUP_DUR = {            // effect duration (ms); shield lasts until consumed or this
-  speed: 8000, shield: 14000, magnet: 9000, multi: 10000, phase: 7000, ghost: 6000,
+  // ghost = "stealth": long duration + hidden from the minimap too (see index.js blips).
+  speed: 8000, shield: 14000, magnet: 9000, multi: 10000, phase: 7000, ghost: 16000,
 };
 const PU_SPEED_MULT = 1.55;      // speed power-up multiplier
 const PU_MAGNET_R = 200;         // magnet auto-eat radius

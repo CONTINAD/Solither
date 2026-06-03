@@ -284,7 +284,14 @@ setInterval(() => {
   // per socket). One sorted pass gives every player's rank + the blips.
   const blips = [];
   const alivePlayers = [];
-  for (const p of game.players.values()) if (p.alive) { blips.push([Math.round(p.x), Math.round(p.y)]); alivePlayers.push(p); }
+  const blipNow = Date.now();
+  for (const p of game.players.values()) {
+    if (!p.alive) continue;
+    alivePlayers.push(p); // still ranks on the leaderboard
+    // Stealth: a ghosted snake shows on NO minimap (truly hidden, not just off the main view).
+    if (p.fx && p.fx.ghost > blipNow) continue;
+    blips.push([Math.round(p.x), Math.round(p.y)]);
+  }
   alivePlayers.sort((a, b) => b.score - a.score);
   const rankMap = new Map();
   for (let i = 0; i < alivePlayers.length; i++) rankMap.set(alivePlayers[i].id, i + 1);
