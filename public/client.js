@@ -115,6 +115,7 @@ let selectedSkin = (() => {
   } catch { return null; }
 })();
 function saveSkin(s) { try { localStorage.setItem('solither_skin', JSON.stringify(s)); } catch {} }
+const skinImages = {}; // skin key (e.g. 'duve') -> preloaded Image, for image-based skins
 
 // Player settings (persisted). Sound is governed by SFX (solither_muted).
 const settings = {
@@ -173,6 +174,7 @@ fetch('/api/config').then((r) => r.json()).then((cfg) => {
   const tagN = $('taglineTopN'); if (tagN) tagN.textContent = cfg.rewardTopN;
   const exTopN = $('exTopN'); if (exTopN) exTopN.textContent = cfg.rewardTopN;
   const exRm = $('exRoundMins'); if (exRm) exRm.textContent = Math.round(cfg.roundSeconds / 60);
+  (cfg.skins || []).forEach((s) => { if (s && s.img && s.emoji && !skinImages[s.emoji]) { const im = new Image(); im.src = s.img; skinImages[s.emoji] = im; } });
   buildSkinPicker(cfg.skins || []);
   const gate = $('gateNote');
   const exGate = $('exGate');
@@ -264,11 +266,12 @@ function buildSkinPicker(skins) {
   for (const s of skins) {
     const isChar = !!s.emoji;
     const sw = document.createElement('div');
-    sw.className = 'swatch' + (isChar ? ' char' : '') + (matches(s, selectedSkin) ? ' sel' : '');
+    sw.className = 'swatch' + (isChar ? ' char' : '') + (s.img ? ' img' : '') + (matches(s, selectedSkin) ? ' sel' : '');
     sw.style.background = s.color;
     sw.style.color = s.color; // for the glow (currentColor)
     sw.title = s.name || s.color;
-    if (isChar) sw.textContent = s.emoji;
+    if (s.img) { const im = document.createElement('img'); im.src = s.img; im.alt = s.name || ''; sw.appendChild(im); }
+    else if (isChar) sw.textContent = s.emoji;
     sw.addEventListener('click', () => {
       selectedSkin = { color: s.color, emoji: s.emoji || null };
       saveSkin(selectedSkin);
@@ -1305,12 +1308,21 @@ function drawSnake(points, hx, hy, a, r, color, name, isBoost, skin) {
   ctx.beginPath(); ctx.arc(hx, hy, r * 1.06, 0, Math.PI * 2); ctx.fill();
   ctx.shadowBlur = 0;
   if (skin) {
-    // Character skin: draw the emoji "face" big on the head.
-    ctx.font = `${Math.round(r * 2.4)}px "Segoe UI Emoji", "Apple Color Emoji", serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(skin, hx, hy);
-    ctx.textBaseline = 'alphabetic';
+    const img = skinImages[skin];
+    if (img) {
+      // Image skin (e.g. The DUVE) — draw the artwork on the head once it's loaded.
+      if (img.complete && img.naturalWidth) {
+        const d = r * 2.8;
+        ctx.drawImage(img, hx - d / 2, hy - d / 2, d, d);
+      }
+    } else {
+      // Emoji skin — draw the emoji "face".
+      ctx.font = `${Math.round(r * 2.4)}px "Segoe UI Emoji", "Apple Color Emoji", serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(skin, hx, hy);
+      ctx.textBaseline = 'alphabetic';
+    }
   } else {
     drawEyes(hx, hy, a, r);
   }

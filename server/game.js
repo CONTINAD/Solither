@@ -54,6 +54,7 @@ const colors = SKINS;
 
 // Italian Brainrot character skins — themed body colour + an emoji "face" on the head.
 export const CHARACTER_SKINS = [
+  { name: 'The DUVE', color: '#C98B63', emoji: 'duve', img: '/skins/duve.svg' }, // image skin
   { name: 'Tung Tung Tung Sahur', color: '#9A6B3F', emoji: '🪵' },
   { name: 'Tralalero Tralala', color: '#2E86DE', emoji: '🦈' },
   { name: 'Bombardiro Crocodilo', color: '#4B6F2C', emoji: '🐊' },
